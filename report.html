@@ -36,8 +36,10 @@
     .card .score { font-weight: 700; display: inline-block; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--chip); margin-bottom: 8px; }
     .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
     .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .geoGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
     @media (max-width: 920px) {
       .grid-2, .grid-3 { grid-template-columns: 1fr; }
+      .geoGrid { grid-template-columns: 1fr; }
       .overall { width: 100%; justify-content: flex-start; }
     }
 
@@ -53,6 +55,16 @@
 
     .chips { display: flex; gap: 8px; flex-wrap: wrap; }
     .chip { background: var(--chip); border: 1px solid var(--border); padding: 4px 8px; border-radius: 999px; font-size: 12px; opacity: 0.9; }
+
+    .geoGrid h3 { margin: 0 0 8px 0; font-size: 14px; letter-spacing: 0.2px; }
+    .geoList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+    .geoList li { padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--chip); font-size: 13px; }
+    .geoList li.ok { border-color: rgba(42,167,69,0.35); }
+    .geoList li.warn { border-color: rgba(227,160,8,0.35); }
+    .geoList li.bad { border-color: rgba(230,57,70,0.35); }
+    .geoList li .label { font-weight: 600; margin-bottom: 4px; }
+    .geoList li .detail { color: var(--muted); font-size: 12px; }
+    .geoList li.muted { color: var(--muted); background: transparent; border-style: dashed; text-align: center; }
 
     .chartWrap { width: 100%; margin-top: 12px; }
     .gaugeWrap { max-width: 360px; margin-left: auto; margin-right: auto; }
@@ -113,6 +125,25 @@
 
     <section class="card grid-3" id="categoryCards">
       <!-- Cards inserted by report.js -->
+    </section>
+
+    <section class="card" id="geoDeepDiveCard" style="display:none;">
+      <h2>GEO Content Deep Dive</h2>
+      <div class="geoGrid">
+        <div>
+          <h3>Report</h3>
+          <ul class="geoList" id="geoReportList"></ul>
+        </div>
+        <div>
+          <h3>Findings</h3>
+          <ul class="geoList" id="geoFindingsList"></ul>
+        </div>
+        <div>
+          <h3>Recommendations</h3>
+          <ul class="geoList" id="geoRecommendationsList"></ul>
+        </div>
+      </div>
+      <div class="muted small" id="geoDeepDiveEmpty" style="display:none;">No GEO insights available.</div>
     </section>
 
     <section class="card" id="paginationCard" style="display:none;">
