@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Site Readiness Auditor – Report</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --card: #121821;
+      --muted: #8aa0b6;
+      --text: #e6eef6;
+      --ok: #2aa745;
+      --warn: #e3a008;
+      --bad: #e63946;
+      --chip: #1a2230;
+      --border: #223044;
+      --accent: #5ca2ff;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    header { padding: 20px; border-bottom: 1px solid var(--border); }
+    header h1 { margin: 0 0 8px 0; font-size: 20px; letter-spacing: 0.3px; }
+    header .row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .url { opacity: 0.9; word-break: break-all; }
+    .overall { margin-left: auto; display: flex; align-items: baseline; gap: 10px; }
+    .overall .score { font-size: 28px; font-weight: 700; padding: 6px 12px; background: var(--chip); border: 1px solid var(--border); border-radius: 10px; }
+    .overall .grade { font-size: 18px; opacity: 0.9; }
+
+    main { padding: 20px; display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; }
+
+    .card { grid-column: span 12; background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
+    .card h2 { margin: 0 0 12px 0; font-size: 16px; letter-spacing: 0.2px; }
+    .card .score { font-weight: 700; display: inline-block; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--chip); margin-bottom: 8px; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    @media (max-width: 920px) {
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+      .overall { width: 100%; justify-content: flex-start; }
+    }
+
+    ul.list { margin: 8px 0 0 0; padding: 0; list-style: none; }
+    ul.list li { padding: 6px 8px; border-radius: 10px; border: 1px solid var(--border); background: var(--chip); margin-bottom: 6px; font-size: 14px; }
+    ul.list li.ok { border-color: rgba(42,167,69,0.35); }
+    ul.list li.warn { border-color: rgba(227,160,8,0.35); }
+    ul.list li.bad { border-color: rgba(230,57,70,0.35); }
+
+    .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+    .chip { background: var(--chip); border: 1px solid var(--border); padding: 4px 8px; border-radius: 999px; font-size: 12px; opacity: 0.9; }
+
+    pre { margin: 0; padding: 12px; background: #0b0f14; color: #cfe5ff; border: 1px solid var(--border); border-radius: 10px; overflow: auto; font-size: 12px; line-height: 1.45; }
+
+    .kv { display: grid; grid-template-columns: 160px 1fr; gap: 8px; }
+    .kv div { padding: 2px 0; }
+    .muted { color: var(--muted); }
+    .spacer { height: 8px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="row">
+      <h1>Site Readiness Auditor – Report</h1>
+      <div class="url" id="url"></div>
+      <div class="overall">
+        <div class="score" id="overallScore">—</div>
+        <div class="grade" id="overallGrade">—</div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="card grid-3" id="categoryCards">
+      <!-- Cards inserted by report.js -->
+    </section>
+
+    <section class="card" id="paginationCard" style="display:none;">
+      <h2>Pagination (Derived from Sitemap)</h2>
+      <div class="kv">
+        <div class="muted">Sitemap seeds</div>
+        <div id="pgSeeds" class="chips"></div>
+        <div class="muted">Detected patterns</div>
+        <div id="pgInfo"></div>
+        <div class="muted">Guesses tried</div>
+        <div id="pgGuesses" class="chips"></div>
+      </div>
+    </section>
+
+    <section class="card" id="suggestionsCard">
+      <h2>Suggestions</h2>
+      <ul class="list" id="suggestions"></ul>
+    </section>
+
+    <section class="card">
+      <h2>Raw Data (debug)</h2>
+      <pre id="raw">{}</pre>
+    </section>
+  </main>
+
+  <script src="report.js"></script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Site Readiness Auditor</title>
+  <link rel="stylesheet" href="popup.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+</head>
+<body>
+  <header>
+    <h1>Site Readiness Auditor</h1>
+    <div>
+      <button id="run" type="button">Run audit</button>
+      <button id="openReport" type="button" disabled>View full report</button>
+    </div>
+  </header>
+
+  <section id="summary" class="card">
+    <h2>Summary</h2>
+    <div id="scoreRow">
+      <div class="score"><span id="score">—</span>/100</div>
+      <div id="grade">—</div>
+    </div>
+    <p id="summaryText">Click "Run audit".</p>
+  </section>
+
+  <section class="card">
+    <h2>Category Scores</h2>
+    <ul id="cats"></ul>
+  </section>
+
+  <section id="checks" class="card">
+    <h2>Key Checks</h2>
+    <ul id="checklist"></ul>
+  </section>
+
+  <section id="details" class="card">
+    <h2>Details &amp; Suggestions</h2>
+    <ul id="suggestions"></ul>
+  </section>
+
+  <footer>
+    <small>Tip: re-run after navigating to another page.</small>
+  </footer>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
