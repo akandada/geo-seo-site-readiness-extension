@@ -46,6 +46,10 @@
     ul.list li.ok { border-color: rgba(42,167,69,0.35); }
     ul.list li.warn { border-color: rgba(227,160,8,0.35); }
     ul.list li.bad { border-color: rgba(230,57,70,0.35); }
+    ul.list li .summary { font-weight: 600; margin-bottom: 4px; }
+    ul.list li .detail { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+    ul.list li .fix { color: var(--warn); font-size: 12px; }
+    ul.list li.bad .fix { color: var(--bad); }
 
     .chips { display: flex; gap: 8px; flex-wrap: wrap; }
     .chip { background: var(--chip); border: 1px solid var(--border); padding: 4px 8px; border-radius: 999px; font-size: 12px; opacity: 0.9; }
