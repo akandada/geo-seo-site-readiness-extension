@@ -11,6 +11,7 @@
   var scoreEl        = document.getElementById("score");
   var gradeEl        = document.getElementById("grade");
   var summaryText    = document.getElementById("summaryText");
+  var progressEl     = document.getElementById("progress");
   var checklist      = document.getElementById("checklist");
   var suggestionsEl  = document.getElementById("suggestions");
   var catsEl         = document.getElementById("cats");
@@ -28,6 +29,15 @@
   }
 
   var lastReportKey = null;
+
+  function resetProgress(){ if(progressEl) progressEl.innerHTML=""; }
+  function pushProgress(text, state){
+    if(!progressEl) return;
+    var div = document.createElement("div");
+    div.className = "progress-item" + (state ? " " + state : "");
+    div.textContent = text;
+    progressEl.appendChild(div);
+  }
 
   // ---------- service worker wake/diagnostics ----------
   async function pingWorkerOnce(){
@@ -60,16 +70,24 @@
       // isolate async to avoid top-level await issues on older Chrome builds
       (async function run(){
         try{
+          runBtn.disabled = true;
+          resetProgress();
+          pushProgress("Starting audit…");
+          if (summaryText) summaryText.textContent = "Running audit…";
+
           const tabs = await chrome.tabs.query({ active:true, currentWindow:true });
           const tab  = tabs && tabs[0];
 
           if (!tab || !tab.id || !/^https?:/i.test(tab.url || "")) {
             summaryText.textContent = "Open a normal web page (http/https) to run the audit.";
+            pushProgress("Active tab is not a standard web page.", "warn");
             return;
           }
 
           // Wake background worker first
+          pushProgress("Waking background worker…");
           var awake = await ensureWorkerAwake();
+          pushProgress(awake ? "Background worker awake." : "Background worker not responding; continuing with limited checks.", awake ? "done" : "warn");
           if (!awake) {
             summaryText.textContent = "Background didn’t start. Reload the extension, then try again.";
             // keep going; DOM-only audit can still run
@@ -79,23 +97,31 @@
           var netInfo = null;
 
           try {
+            pushProgress("Collecting DOM data…");
             domInfo = await chrome.tabs.sendMessage(tab.id, { type: "COLLECT_DOM_INFO" });
+            pushProgress(domInfo ? "DOM data collected." : "DOM data unavailable (fallback).", domInfo ? "done" : "warn");
           } catch (e1) {
             // Content script may not be injected or the page forbids it (e.g., Chrome Web Store)
             console.warn("[SRA] DOM info fetch failed:", e1);
+            pushProgress("DOM data request failed.", "warn");
           }
 
           try {
+            pushProgress("Scanning network endpoints (robots.txt, ai.txt, llms.txt, sitemap)…");
             netInfo = await chrome.runtime.sendMessage({ type: "COLLECT_NETWORK_INFO", url: tab.url });
+            pushProgress(netInfo ? "Network scan complete." : "Network scan unavailable (fallback).", netInfo ? "done" : "warn");
           } catch (e2) {
             // If you hit this, open chrome://extensions → Inspect views → Service worker and check logs
             console.warn("[SRA] Network info fetch failed:", e2);
+            pushProgress("Network scan failed.", "warn");
           }
 
           if (!domInfo) domInfo = { url: tab.url };
 
+          pushProgress("Calculating readiness scores…");
           var results = computeAudit(domInfo || {}, netInfo || {});
           render(results);
+          pushProgress("Audit complete.", "done");
 
           lastReportKey = "audit-" + Math.random().toString(36).slice(2);
           var saveObj = {}; saveObj[lastReportKey] = results;
@@ -106,6 +132,10 @@
         } catch(err){
           console.error("[SRA] Fatal error in run():", err);
           summaryText.textContent = "Unexpected error. Open the popup console for details.";
+          pushProgress("Audit failed to complete.", "error");
+        } finally {
+          if (runBtn) runBtn.disabled = false;
+          if (reportBtn && lastReportKey) reportBtn.disabled = false;
         }
       })();
     });
@@ -132,8 +162,10 @@
     // LLM & SEO signals
     var aiBots = get(net, ["robots","bots"], {});
     addCat("seo", 4, get(net,["sitemap","exists"],false)===true, "Sitemap discoverable", "Expose /sitemap.xml and link it in robots.txt.");
-    addCat("llm", 4, get(net,["aiTxt","exists"],false)===true, "ai.txt present", "Publish /ai.txt to declare AI policies.");
-    addCat("llm", 3, get(net,["llmsTxt","exists"],false)===true, "llms.txt present", "Include /llms.txt if you maintain it.");
+    var aiTxtOk   = get(net,["aiTxt","exists"],false)===true;
+    var llmsTxtOk = get(net,["llmsTxt","exists"],false)===true;
+    addCat("llm", 4, aiTxtOk, aiTxtOk ? "ai.txt present" : "ai.txt missing", "Publish /ai.txt to declare AI policies.");
+    addCat("llm", 3, llmsTxtOk, llmsTxtOk ? "llms.txt present" : "llms.txt missing", "Include /llms.txt if you maintain it.");
 
     addCat("llm", 4, get(aiBots,["GPTBot","allowed"],true)!==false, "GPTBot not blocked", "Avoid disallowing GPTBot if you want GPT models to read your site.");
     addCat("llm", 3, get(aiBots,["CCBot","allowed"],true)!==false, "CommonCrawl not blocked", "CommonCrawl feeds many models.");
