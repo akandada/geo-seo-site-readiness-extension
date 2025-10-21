@@ -3,6 +3,8 @@ function qa(sel){return Array.from(document.querySelectorAll(sel))}
 function getMeta(name){return q(`meta[name="${name}"]`)?.getAttribute('content')||''}
 function getHeader(name){return q(`meta[http-equiv="${name}"]`)?.getAttribute('content')||''}
 function metaRobots(){ const v = (getMeta('robots') || getHeader('X-Robots-Tag') || '').toLowerCase(); return v; }
+function pageTitle(){ return (document.title || '').trim(); }
+function metaDescription(){ return (getMeta('description') || '').trim(); }
 function countJsonLd(){ return qa('script[type="application/ld+json"]').length }
 function ogCount(){ return qa('meta[property^="og:"]').length }
 function twitterCount(){ return qa('meta[name^="twitter:"]').length }
@@ -11,6 +13,7 @@ function metaDescOk(){ const d = getMeta('description') || ''; const len = d.tri
 function h1Count(){ return qa('h1').length }
 function imgWithoutAlt(){ return qa('img').filter(img => !(img.getAttribute('alt')||'').trim()).length }
 function langOk(){ return !!(document.documentElement.getAttribute('lang')||'').trim() }
+function htmlLang(){ return (document.documentElement.getAttribute('lang')||'').trim(); }
 function canonical(){ return q('link[rel="canonical"]')?.href || '' }
 function mainWordCount(){ const clone = document.body.cloneNode(true); clone.querySelectorAll('script,style,nav,footer,header,form,aside').forEach(n=>n.remove()); const text=(clone.innerText||'').replace(/\s+/g,' ').trim(); return text.split(' ').filter(Boolean).length; }
 function resourceHints(){ return { preconnect: qa('link[rel=\"preconnect\"]').length, preload: qa('link[rel=\"preload\"]').length, dnsPrefetch: qa('link[rel=\"dns-prefetch\"]').length }; }
@@ -30,6 +33,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           ogCount: ogCount(),
           twitterCount: twitterCount(),
           metaRobots: metaRobots(),
+          titleLength: pageTitle().length,
+          metaDescriptionLength: metaDescription().length,
+          htmlLang: htmlLang(),
           titleOk: titleOk(),
           metaDescOk: metaDescOk(),
           h1Count: h1Count(),

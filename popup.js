@@ -153,46 +153,121 @@
 
     var suggestionsSet = {};
     function addSuggestion(s){ if (s) suggestionsSet[s] = true; }
-    function addCat(cat, weight, ok, text, advice){
+    function addCat(cat, weight, ok, text, advice, detail){
       var state = ok ? "ok" : (weight >= 6 ? "bad" : "warn");
-      CATS[cat].items.push({ state: state, text: text });
-      if (ok) CATS[cat].score += weight; else addSuggestion(advice);
+      CATS[cat].items.push({
+        state: state,
+        text: text,
+        detail: detail || "",
+        fix: (!ok && advice) ? advice : ""
+      });
+      if (ok) {
+        CATS[cat].score += weight;
+      } else if (advice) {
+        addSuggestion(advice);
+      }
     }
 
     // LLM & SEO signals
     var aiBots = get(net, ["robots","bots"], {});
-    addCat("seo", 4, get(net,["sitemap","exists"],false)===true, "Sitemap discoverable", "Expose /sitemap.xml and link it in robots.txt.");
-    var aiTxtOk   = get(net,["aiTxt","exists"],false)===true;
-    var llmsTxtOk = get(net,["llmsTxt","exists"],false)===true;
-    addCat("llm", 4, aiTxtOk, aiTxtOk ? "ai.txt present" : "ai.txt missing", "Publish /ai.txt to declare AI policies.");
-    addCat("llm", 3, llmsTxtOk, llmsTxtOk ? "llms.txt present" : "llms.txt missing", "Include /llms.txt if you maintain it.");
+    var sitemapExists = get(net,["sitemap","exists"],false)===true;
+    var sitemapDetail = sitemapExists ?
+      "robots.txt references a sitemap or /sitemap.xml responded." :
+      "No sitemap reference found in robots.txt and /sitemap.xml was unreachable.";
+    addCat("seo", 4, sitemapExists, "Sitemap discoverable", "Expose /sitemap.xml and link it in robots.txt.", sitemapDetail);
 
-    addCat("llm", 4, get(aiBots,["GPTBot","allowed"],true)!==false, "GPTBot not blocked", "Avoid disallowing GPTBot if you want GPT models to read your site.");
-    addCat("llm", 3, get(aiBots,["CCBot","allowed"],true)!==false, "CommonCrawl not blocked", "CommonCrawl feeds many models.");
-    addCat("llm", 3, get(aiBots,["ClaudeBot","allowed"],true)!==false, "ClaudeBot not blocked", "Block only if intentional.");
-    addCat("llm", 2, get(aiBots,["PerplexityBot","allowed"],true)!==false, "PerplexityBot not blocked", "Block only if intentional.");
-    addCat("llm", 3, get(aiBots,["Google-Extended","allowed"],true)!==false, "Google-Extended not blocked", "Block only to limit certain AI uses.");
+    var aiTxtOk   = get(net,["aiTxt","exists"],false)===true;
+    var aiTxtStatus = get(net,["aiTxt","status"],0);
+    var aiTxtUrl    = get(net,["aiTxt","url"],"");
+    var aiTxtCt     = get(net,["aiTxt","ct"],"");
+    var aiTxtDetail = aiTxtOk ?
+      "Detected plain-text ai.txt at " + (aiTxtUrl || "/ai.txt") + (aiTxtCt ? " (" + aiTxtCt + ")" : "") + "." :
+      "Response status " + aiTxtStatus + " or non-text content prevented detecting /ai.txt.";
+    addCat("llm", 4, aiTxtOk, aiTxtOk ? "ai.txt present" : "ai.txt missing", "Publish /ai.txt to declare AI policies.", aiTxtDetail);
+
+    var llmsTxtOk = get(net,["llmsTxt","exists"],false)===true;
+    var llmsStatus = get(net,["llmsTxt","status"],0);
+    var llmsUrl    = get(net,["llmsTxt","url"],"");
+    var llmsCt     = get(net,["llmsTxt","ct"],"");
+    var llmsDetail = llmsTxtOk ?
+      "Detected plain-text llms.txt at " + (llmsUrl || "/llms.txt") + (llmsCt ? " (" + llmsCt + ")" : "") + "." :
+      "Response status " + llmsStatus + " or non-text content prevented detecting /llms.txt.";
+    addCat("llm", 3, llmsTxtOk, llmsTxtOk ? "llms.txt present" : "llms.txt missing", "Include /llms.txt if you maintain it.", llmsDetail);
+
+    function botDetail(botName, allowed){
+      return allowed ?
+        botName + " is not disallowed in robots.txt." :
+        botName + " is disallowed via robots.txt directives.";
+    }
+
+    var gptAllowed = get(aiBots,["GPTBot","allowed"],true)!==false;
+    addCat("llm", 4, gptAllowed, "GPTBot not blocked", "Avoid disallowing GPTBot if you want GPT models to read your site.", botDetail("GPTBot", gptAllowed));
+
+    var ccAllowed = get(aiBots,["CCBot","allowed"],true)!==false;
+    addCat("llm", 3, ccAllowed, "CommonCrawl not blocked", "CommonCrawl feeds many models.", botDetail("CCBot", ccAllowed));
+
+    var claudeAllowed = get(aiBots,["ClaudeBot","allowed"],true)!==false;
+    addCat("llm", 3, claudeAllowed, "ClaudeBot not blocked", "Block only if intentional.", botDetail("ClaudeBot", claudeAllowed));
+
+    var perplexityAllowed = get(aiBots,["PerplexityBot","allowed"],true)!==false;
+    addCat("llm", 2, perplexityAllowed, "PerplexityBot not blocked", "Block only if intentional.", botDetail("PerplexityBot", perplexityAllowed));
+
+    var googleExtAllowed = get(aiBots,["Google-Extended","allowed"],true)!==false;
+    addCat("llm", 3, googleExtAllowed, "Google-Extended not blocked", "Block only to limit certain AI uses.", botDetail("Google-Extended", googleExtAllowed));
 
     var xRobots    = String(get(net,["headers","xRobotsTag"],"")).toLowerCase();
     var metaRobots = String(get(dom,["metaRobots"],"")).toLowerCase();
     var indexAllowed = !(xRobots.indexOf("noindex")>=0 || metaRobots.indexOf("noindex")>=0);
     var aiUseAllowed = !(xRobots.indexOf("noai")>=0 || metaRobots.indexOf("noai")>=0);
 
-    addCat("seo", 4, indexAllowed, "Indexing allowed", "Remove noindex to allow discovery.");
-    addCat("llm", 4, aiUseAllowed, "AI use not blocked", "Remove noai if you intend to allow AI use.");
+    function directiveDetail(ok, directive, sourceHeader, sourceMeta){
+      if (ok) return "No " + directive + " directive detected in meta or headers.";
+      var sources = [];
+      if (sourceHeader) sources.push("X-Robots-Tag header");
+      if (sourceMeta) sources.push("<meta name=\"robots\"> tag");
+      if (!sources.length) return directive + " directive detected.";
+      return directive + " directive found in " + sources.join(" and ") + ".";
+    }
 
-    addCat("seo", 5, (get(dom,["jsonLdCount"],0)||0)>0, "JSON-LD present", "Add schema.org JSON-LD (WebSite/Article/FAQ/etc).");
-    addCat("seo", 3, !!get(dom,["canonical"],""), "Canonical present", "Add <link rel=\"canonical\">.");
-    addCat("seo", 3, !!get(dom,["titleOk"],false), "Title length OK (10–70)", "Keep concise, descriptive titles.");
-    addCat("seo", 3, !!get(dom,["metaDescOk"],false), "Meta description OK (50–160)", "Add a helpful summary.");
-    addCat("seo", 2, (get(dom,["ogCount"],0)||0)>0, "OpenGraph present", "Add og:* tags for rich previews.");
-    addCat("seo", 2, (get(dom,["twitterCount"],0)||0)>0, "Twitter Card present", "Add twitter:* tags.");
+    var indexDetail = directiveDetail(indexAllowed, "noindex", xRobots.indexOf("noindex")>=0, metaRobots.indexOf("noindex")>=0);
+    addCat("seo", 4, indexAllowed, "Indexing allowed", "Remove noindex to allow discovery.", indexDetail);
+
+    var aiDetail = directiveDetail(aiUseAllowed, "noai", xRobots.indexOf("noai")>=0, metaRobots.indexOf("noai")>=0);
+    addCat("llm", 4, aiUseAllowed, "AI use not blocked", "Remove noai if you intend to allow AI use.", aiDetail);
+
+    var jsonLdCount = get(dom,["jsonLdCount"],0)||0;
+    addCat("seo", 5, jsonLdCount>0, "JSON-LD present", "Add schema.org JSON-LD (WebSite/Article/FAQ/etc).", jsonLdCount>0 ? jsonLdCount + " JSON-LD script tag(s) found." : "No JSON-LD script tags detected.");
+
+    var canonicalHref = get(dom,["canonical"],"");
+    addCat("seo", 3, !!canonicalHref, "Canonical present", "Add <link rel=\"canonical\">.", canonicalHref ? "Canonical URL: " + canonicalHref : "No canonical link element detected.");
+
+    var titleOkVal = !!get(dom,["titleOk"],false);
+    var titleLength = Number(get(dom,["titleLength"],0)||0);
+    addCat("seo", 3, titleOkVal, "Title length OK (10–70)", "Keep concise, descriptive titles.", titleLength ? "Title length: " + titleLength + " characters." : "Title missing or empty.");
+
+    var metaDescOkVal = !!get(dom,["metaDescOk"],false);
+    var metaDescLength = Number(get(dom,["metaDescriptionLength"],0)||0);
+    addCat("seo", 3, metaDescOkVal, "Meta description OK (50–160)", "Add a helpful summary.", metaDescLength ? "Meta description length: " + metaDescLength + " characters." : "Meta description missing or empty.");
+
+    var ogCountVal = get(dom,["ogCount"],0)||0;
+    addCat("seo", 2, ogCountVal>0, "OpenGraph present", "Add og:* tags for rich previews.", ogCountVal>0 ? ogCountVal + " og:* tag(s) detected." : "No OpenGraph tags found.");
+
+    var twitterCountVal = get(dom,["twitterCount"],0)||0;
+    addCat("seo", 2, twitterCountVal>0, "Twitter Card present", "Add twitter:* tags.", twitterCountVal>0 ? twitterCountVal + " twitter:* tag(s) detected." : "No Twitter Card tags found.");
 
     // A11y
-    addCat("a11y", 3, get(dom,["h1Count"],0)===1, "Single <h1> present", "Use exactly one H1.");
-    addCat("a11y", 3, (get(dom,["imgWithoutAlt"],0)||0)===0, "Images have alt", "Add alt attributes.");
-    addCat("a11y", 2, !!get(dom,["langOk"],false), "html[lang] set", "Set <html lang=\"...\">.");
-    addCat("a11y", 2, (get(dom,["mainWordCount"],0)||0)>=300, "Substantive text (>=300 words)", "Add more helpful copy.");
+    var h1Total = get(dom,["h1Count"],0)||0;
+    addCat("a11y", 3, h1Total===1, "Single <h1> present", "Use exactly one H1.", "Detected " + h1Total + " <h1> element(s).");
+
+    var imagesMissingAlt = get(dom,["imgWithoutAlt"],0)||0;
+    addCat("a11y", 3, imagesMissingAlt===0, "Images have alt", "Add alt attributes.", imagesMissingAlt===0 ? "All images include alt text." : imagesMissingAlt + " image(s) missing alt text.");
+
+    var langSet = !!get(dom,["langOk"],false);
+    var htmlLangVal = get(dom,["htmlLang"],"");
+    addCat("a11y", 2, langSet, "html[lang] set", "Set <html lang=\"...\">.", langSet ? "html[lang] is set to '" + htmlLangVal + "'." : "html[lang] attribute not present.");
+
+    var wordCount = get(dom,["mainWordCount"],0)||0;
+    addCat("a11y", 2, wordCount>=300, "Substantive text (>=300 words)", "Add more helpful copy.", "Estimated main content word count: " + wordCount + ".");
 
     // Performance (heuristics)
     var lcp = get(dom,["perf","lcp"],null);
@@ -202,21 +277,39 @@
     var clsOk = (typeof cls==="number") ? (cls<=0.1) : true;
     var inpOk = (inp==null) ? true : (inp<=200);
 
-    addCat("performance", 6, !!lcpOk, "LCP <= 2.5s (observed: "+(lcp==null?"--":lcp)+"ms)", "Optimize LCP element (hero text/image, critical CSS).");
-    addCat("performance", 4, !!clsOk, "CLS <= 0.1 (observed: "+(cls==null?"--":cls)+")", "Reserve space for media, use font-display.");
-    addCat("performance", 4, !!inpOk, "INP <= 200ms (observed: "+(inp==null?"--":inp)+"ms)", "Trim JS, avoid long tasks, defer non-critical work.");
+    var lcpDetail = "Observed LCP: " + (lcp==null?"not available": lcp + " ms") + ".";
+    addCat("performance", 6, !!lcpOk, "LCP <= 2.5s (observed: "+(lcp==null?"--":lcp)+"ms)", "Optimize LCP element (hero text/image, critical CSS).", lcpDetail);
+
+    var clsDetail = "Cumulative Layout Shift: " + (cls==null?"not available": cls) + ".";
+    addCat("performance", 4, !!clsOk, "CLS <= 0.1 (observed: "+(cls==null?"--":cls)+")", "Reserve space for media, use font-display.", clsDetail);
+
+    var inpDetail = "Interaction to Next Paint: " + (inp==null?"not available": inp + " ms") + ".";
+    addCat("performance", 4, !!inpOk, "INP <= 200ms (observed: "+(inp==null?"--":inp)+"ms)", "Trim JS, avoid long tasks, defer non-critical work.", inpDetail);
 
     var enc = String(get(net,["root","headers","content-encoding"],"")).toLowerCase();
     var compressed = enc.indexOf("br")>=0 || enc.indexOf("gzip")>=0 || enc.indexOf("zstd")>=0;
     var cacheOk = /max-age=\d{3,}/i.test(String(get(net,["root","headers","cache-control"],"")));
 
-    addCat("performance", 4, !!compressed, "Compression enabled (gzip/br)", "Enable Brotli/gzip on HTML and static assets.");
-    addCat("performance", 4, !!cacheOk, "Caching headers present", "Set Cache-Control/ETag on static assets.");
-    addCat("performance", 3, (get(dom,["resourceHints","preconnect"],0)||0)>0, "Preconnect present", "Add <link rel=\"preconnect\"> to critical origins.");
-    addCat("performance", 3, (get(dom,["resourceHints","preload"],0)||0)>0, "Preload present", "Preload hero font/image/CSS.");
-    addCat("performance", 3, (get(dom,["images","modernPct"],0)||0)>=70, "Modern images >=70% ("+Math.round(get(dom,["images","modernPct"],0)||0)+"%)", "Prefer AVIF/WebP for large images.");
-    addCat("performance", 3, (get(dom,["images","lazyPct"],0)||0)>=70, "Lazy-loaded images >=70% ("+Math.round(get(dom,["images","lazyPct"],0)||0)+"%)", "Use loading=\"lazy\" below the fold.");
-    addCat("performance", 2, !!get(dom,["fonts","haveDisplay"],false), "Fonts use font-display", "Use font-display: swap/optional.");
+    addCat("performance", 4, !!compressed, "Compression enabled (gzip/br)", "Enable Brotli/gzip on HTML and static assets.", compressed ? "Content-Encoding header indicates compression ('" + enc + "')." : "No compression header detected on initial response.");
+
+    var cacheHeader = String(get(net,["root","headers","cache-control"],""));
+    addCat("performance", 4, !!cacheOk, "Caching headers present", "Set Cache-Control/ETag on static assets.", cacheHeader ? "Cache-Control: " + cacheHeader : "No Cache-Control header detected.");
+
+    var preconnectCount = get(dom,["resourceHints","preconnect"],0)||0;
+    addCat("performance", 3, preconnectCount>0, "Preconnect present", "Add <link rel=\"preconnect\"> to critical origins.", preconnectCount>0 ? preconnectCount + " preconnect hint(s) found." : "No preconnect hints detected.");
+
+    var preloadCount = get(dom,["resourceHints","preload"],0)||0;
+    addCat("performance", 3, preloadCount>0, "Preload present", "Preload hero font/image/CSS.", preloadCount>0 ? preloadCount + " preload hint(s) found." : "No preload hints detected.");
+
+    var imagesModernPct = Math.round(get(dom,["images","modernPct"],0)||0);
+    var imagesCount = get(dom,["images","count"],0)||0;
+    addCat("performance", 3, imagesModernPct>=70, "Modern images >=70% ("+imagesModernPct+"%)", "Prefer AVIF/WebP for large images.", imagesCount ? imagesModernPct + "% of " + imagesCount + " image(s) use modern formats." : "No images detected on page.");
+
+    var imagesLazyPct = Math.round(get(dom,["images","lazyPct"],0)||0);
+    addCat("performance", 3, imagesLazyPct>=70, "Lazy-loaded images >=70% ("+imagesLazyPct+"%)", "Use loading=\"lazy\" below the fold.", imagesCount ? imagesLazyPct + "% of " + imagesCount + " image(s) use loading=\"lazy\"." : "No images detected on page.");
+
+    var fontsDisplay = !!get(dom,["fonts","haveDisplay"],false);
+    addCat("performance", 2, fontsDisplay, "Fonts use font-display", "Use font-display: swap/optional.", fontsDisplay ? "font-display detected in inline styles." : "No font-display declaration found in detected stylesheets.");
 
     // Infinite scroll / crawlable pagination
     var hasPaginationLinks  = ((get(dom,["pagination","links"],[])||[]).length)>0;
@@ -228,10 +321,21 @@
     var infinitePatternOK =
       (infiniteObserved && hasPaginationLinks && pageFetchOK) ||
       (!infiniteObserved && hasPaginationLinks && pageFetchOK);
+    var paginationLinksCount = (get(dom,["pagination","links"],[])||[]).length;
+    var infiniteDetail = infinitePatternOK ?
+      "Found " + paginationLinksCount + " pagination link(s) and a page 2 fetch succeeded." :
+      "Missing pagination requirements (links: " + paginationLinksCount + ", page fetch success: " + (pageFetchOK ? "yes" : "no") + ").";
+    addCat("infinite", 6, infinitePatternOK, "Crawlable pagination present (with or without infinite UI)", "Ensure page 2/3 links exist and return content server-side.", infiniteDetail);
 
-    addCat("infinite", 6, infinitePatternOK, "Crawlable pagination present (with or without infinite UI)", "Ensure page 2/3 links exist and return content server-side.");
-    addCat("infinite", 2, (paginationVisible || relNextPrevFound), paginationVisible ? "Pagination visible to users" : "rel=\"next/prev\" present", "Prefer visible anchor links; rel is only a hint.");
-    addCat("infinite", 2, true, infiniteObserved ? "Infinite scroll detected" : "Traditional pagination", infiniteObserved ? null : "If you want infinite UX, progressively append without hiding crawlable links.");
+    var paginationVisibilityDetail = paginationVisible ?
+      "Pagination elements are visible in the DOM." :
+      (relNextPrevFound ? "rel=next/prev link tags found." : "No visible pagination controls or rel hints detected.");
+    addCat("infinite", 2, (paginationVisible || relNextPrevFound), paginationVisible ? "Pagination visible to users" : "rel=\"next/prev\" present", "Prefer visible anchor links; rel is only a hint.", paginationVisibilityDetail);
+
+    var infiniteModeDetail = infiniteObserved ?
+      "Additional content appended during scroll test." :
+      "No infinite scroll behavior detected; relies on traditional pagination.";
+    addCat("infinite", 2, true, infiniteObserved ? "Infinite scroll detected" : "Traditional pagination", infiniteObserved ? null : "If you want infinite UX, progressively append without hiding crawlable links.", infiniteModeDetail);
 
     // Overall
     var overallMax=0, got=0;

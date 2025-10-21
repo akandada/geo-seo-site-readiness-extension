@@ -208,14 +208,26 @@ function cardEl(title, score, items) {
     listHtml = '<ul class="list">' + items.map(function(i){
       var cls = i.state || "";
       var txt = i.text || "";
-      return '<li class="' + cls + '">' + escapeHtml(txt) + "</li>";
+      var detail = i.detail ? '<div class="detail">' + escapeHtml(i.detail) + '</div>' : "";
+      var fix = "";
+      if (i.fix && (cls === "warn" || cls === "bad")) {
+        fix = '<div class="fix">Fix: ' + escapeHtml(i.fix) + '</div>';
+      }
+      return '<li class="' + cls + '"><div class="summary">' + escapeHtml(txt) + '</div>' + detail + fix + "</li>";
     }).join("") + "</ul>";
   } else {
     listHtml = '<div class="muted">No items.</div>';
   }
+  var gradeLabel = "—";
+  if (score != null) {
+    var num = Number(score);
+    if (num === num) {
+      gradeLabel = grade(num);
+    }
+  }
   div.innerHTML =
     '<h2>' + escapeHtml(title) + '</h2>' +
-    '<div class="score">' + (score != null ? score : "—") + ' (' + grade(Number(score) || 0) + ')</div>' +
+    '<div class="score">' + (score != null ? score : "—") + ' (' + gradeLabel + ')</div>' +
     listHtml;
   return div;
 }
