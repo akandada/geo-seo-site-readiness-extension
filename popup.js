@@ -2,6 +2,8 @@
 // Includes a background PING + retry before requesting COLLECT_NETWORK_INFO.
 // Wrapped in an IIFE to keep globals tidy and stabilize line numbers.
 
+import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
+
 (function(){
   "use strict";
 
@@ -144,7 +146,7 @@
   // ---------- scoring & report assembly ----------
   function computeAudit(dom, net){
     var CATS = {
-      performance: { max: 35, score: 0, items: [] },
+      performance: { max: 42, score: 0, items: [] },
       seo:         { max: 25, score: 0, items: [] },
       geo:         { max: 20, score: 0, items: [] },
       llm:         { max: 20, score: 0, items: [] },
@@ -329,22 +331,72 @@
     var wordCount = get(dom,["mainWordCount"],0)||0;
     addCat("a11y", 2, wordCount>=300, "Substantive text (>=300 words)", "Add more helpful copy.", "Estimated main content word count: " + wordCount + ".");
 
-    // Performance (heuristics)
+    // Performance (Lighthouse curves + heuristics)
     var lcp = get(dom,["perf","lcp"],null);
     var cls = get(dom,["perf","cls"],null);
     var inp = get(dom,["perf","inp"],null);
-    var lcpOk = (lcp==null) ? true : (lcp<=2500);
-    var clsOk = (typeof cls==="number") ? (cls<=0.1) : true;
-    var inpOk = (inp==null) ? true : (inp<=200);
+    var lighthousePerf = scoreWebVitals({ lcp: lcp, cls: cls, inp: inp });
+    var lighthouseMetrics = lighthousePerf && lighthousePerf.metrics ? lighthousePerf.metrics : {};
+    var lighthousePoints = { lcp: 10, cls: 4, inp: 6 };
+    var lighthouseAdvice = {
+      lcp: "Optimize hero content and critical rendering path to reduce LCP.",
+      cls: "Reserve space for media, use font-display, and avoid layout shifts.",
+      inp: "Reduce long tasks and JavaScript execution to improve interaction latency."
+    };
 
-    var lcpDetail = "Observed LCP: " + (lcp==null?"not available": lcp + " ms") + ".";
-    addCat("performance", 6, !!lcpOk, "LCP <= 2.5s (observed: "+(lcp==null?"--":lcp)+"ms)", "Optimize LCP element (hero text/image, critical CSS).", lcpDetail);
+    function addLighthouseMetric(metricId, fallbackLabel) {
+      var metric = lighthouseMetrics && lighthouseMetrics[metricId] ? lighthouseMetrics[metricId] : null;
+      var label = fallbackLabel;
+      if (metric && metric.label) label = metric.label;
+      var weight = lighthousePoints && lighthousePoints[metricId] != null ? lighthousePoints[metricId] : 0;
+      if (!metric || metric.scoreValue == null) {
+        CATS.performance.items.push({
+          state: "warn",
+          text: label + " metric unavailable",
+          detail: "Lighthouse did not capture " + label + " during this audit run.",
+          fix: "Reload the page and rerun the audit to capture " + label + "."
+        });
+        addSuggestion("Reload the page to capture " + label + " for Lighthouse scoring.");
+        return;
+      }
 
-    var clsDetail = "Cumulative Layout Shift: " + (cls==null?"not available": cls) + ".";
-    addCat("performance", 4, !!clsOk, "CLS <= 0.1 (observed: "+(cls==null?"--":cls)+")", "Reserve space for media, use font-display.", clsDetail);
+      var bucket = scoreLabelFromValue(metric.scoreValue);
+      var state = bucket === "good" ? "ok" : (bucket === "needs-improvement" ? "warn" : "bad");
+      var percentScore = metric.score != null ? metric.score : Math.round(metric.scoreValue * 100);
+      var detail = label + " measured at " + metric.displayValue + ".";
+      if (metric.reference) {
+        detail += " Scored via Lighthouse " + (metric.scoring || "") + " curve (p10=" + metric.reference.p10 + ", median=" + metric.reference.median + ").";
+      }
+      detail += " Lighthouse score " + percentScore + "/100.";
+      var fix = state === "ok" ? "" : (lighthouseAdvice && lighthouseAdvice[metricId] ? lighthouseAdvice[metricId] : "Consult Lighthouse guidance to improve this metric.");
+      CATS.performance.items.push({
+        state: state,
+        text: label + " (" + metric.displayValue + ")",
+        detail: detail,
+        fix: fix
+      });
+      if (metric.scoreValue != null) {
+        CATS.performance.score += weight * metric.scoreValue;
+      }
+      if (state !== "ok" && fix) addSuggestion(fix);
+    }
 
-    var inpDetail = "Interaction to Next Paint: " + (inp==null?"not available": inp + " ms") + ".";
-    addCat("performance", 4, !!inpOk, "INP <= 200ms (observed: "+(inp==null?"--":inp)+"ms)", "Trim JS, avoid long tasks, defer non-critical work.", inpDetail);
+    addLighthouseMetric("lcp", "Largest Contentful Paint");
+    addLighthouseMetric("cls", "Cumulative Layout Shift");
+    addLighthouseMetric("inp", "Interaction to Next Paint");
+
+    if (lighthousePerf && lighthousePerf.overallScore != null) {
+      var overallState = lighthousePerf.overallScore >= 90 ? "ok" : (lighthousePerf.overallScore >= 60 ? "warn" : "bad");
+      var overallFix = overallState === "ok" ? "" : "Improve Core Web Vitals to raise your Lighthouse performance score.";
+      var overallDetail = "Weighted Lighthouse score from LCP, CLS, and INP (" + (lighthousePerf.source || "Lighthouse") + ").";
+      CATS.performance.items.push({
+        state: overallState,
+        text: "Lighthouse performance score " + lighthousePerf.overallScore + "/100",
+        detail: overallDetail,
+        fix: overallFix
+      });
+      if (overallState !== "ok" && overallFix) addSuggestion(overallFix);
+    }
 
     var enc = String(get(net,["root","headers","content-encoding"],"")).toLowerCase();
     var compressed = enc.indexOf("br")>=0 || enc.indexOf("gzip")>=0 || enc.indexOf("zstd")>=0;
@@ -411,6 +463,33 @@
 
     var suggestions = Object.keys(suggestionsSet);
 
+    var lighthouseStore = {
+      source: lighthousePerf && lighthousePerf.source ? lighthousePerf.source : "",
+      overallScore: lighthousePerf && lighthousePerf.overallScore != null ? lighthousePerf.overallScore : null,
+      overallScoreValue: lighthousePerf && lighthousePerf.overallScoreValue != null ? lighthousePerf.overallScoreValue : null,
+      weightTotal: lighthousePerf && lighthousePerf.weightTotal != null ? lighthousePerf.weightTotal : null,
+      metrics: {}
+    };
+    if (lighthousePerf && lighthousePerf.metrics) {
+      for (var mKey in lighthousePerf.metrics) {
+        if (!Object.prototype.hasOwnProperty.call(lighthousePerf.metrics, mKey)) continue;
+        var metricObj = lighthousePerf.metrics[mKey];
+        var metricEntry = {
+          label: metricObj && metricObj.label ? metricObj.label : mKey,
+          value: metricObj && metricObj.value != null ? metricObj.value : null,
+          displayValue: metricObj && metricObj.displayValue != null ? metricObj.displayValue : "—",
+          score: metricObj && metricObj.score != null ? metricObj.score : null,
+          scoreValue: metricObj && metricObj.scoreValue != null ? metricObj.scoreValue : null,
+          weight: metricObj && metricObj.weight != null ? metricObj.weight : null,
+          scoring: metricObj && metricObj.scoring ? metricObj.scoring : "",
+          reference: metricObj && metricObj.reference ? metricObj.reference : null,
+          points: lighthousePoints && lighthousePoints[mKey] != null ? lighthousePoints[mKey] : null,
+          earnedPoints: metricObj && metricObj.scoreValue != null && lighthousePoints && lighthousePoints[mKey] != null ? Math.round(metricObj.scoreValue * lighthousePoints[mKey] * 100) / 100 : null
+        };
+        lighthouseStore.metrics[mKey] = metricEntry;
+      }
+    }
+
     return {
       meta: { url: get(dom,["url"],"") || (get(net,["url"],"") || "") },
       overall: { score: overallPct, grade: gradeFromScore(overallPct) },
@@ -424,6 +503,7 @@
       },
       keyChecks: keyChecks,
       suggestions: suggestions,
+      lighthouse: lighthouseStore,
       dom: dom,
       net: net
     };
@@ -434,10 +514,14 @@
     scoreEl.textContent = result.overall.score;
     gradeEl.textContent = result.overall.grade;
 
-    summaryText.textContent =
+    var summaryLine =
       result.overall.score >= 90 ? "Excellent overall readiness." :
       result.overall.score >= 75 ? "Good foundation—fix the top warnings." :
                                    "Multiple issues detected. Fix top suggestions first.";
+    if (result.lighthouse && result.lighthouse.overallScore != null) {
+      summaryLine += " Lighthouse performance score " + result.lighthouse.overallScore + "/100.";
+    }
+    summaryText.textContent = summaryLine;
 
     catsEl.innerHTML = "";
     var names = Object.keys(result.categories);
