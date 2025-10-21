@@ -8,6 +8,81 @@ function grade(score) {
   return "F";
 }
 
+function scoreColor(score) {
+  if (score >= 90) return "#2aa745";
+  if (score >= 75) return "#5ca2ff";
+  if (score >= 60) return "#e3a008";
+  return "#e63946";
+}
+
+function renderScoreChart(canvas, categories) {
+  if (!canvas || !canvas.getContext) return;
+  var ctx = canvas.getContext("2d");
+  var dpr = window.devicePixelRatio || 1;
+  var parent = canvas.parentNode;
+  var width = parent && parent.clientWidth ? parent.clientWidth : 600;
+  var paddingX = 24;
+  var paddingY = 24;
+  var barHeight = 28;
+  var gap = 16;
+  var labelWidth = 160;
+  var count = categories ? categories.length : 0;
+  var height = paddingY * 2 + (count > 0 ? (count * barHeight + (count - 1) * gap) : 0);
+
+  if (width <= 0) { width = 600; }
+  if (height <= 0) { height = paddingY * 2 + barHeight; }
+
+  canvas.width = width * dpr;
+  canvas.height = height * dpr;
+  canvas.style.width = width + "px";
+  canvas.style.height = height + "px";
+
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.scale(dpr, dpr);
+
+  if (!count) {
+    return;
+  }
+
+  var font = "13px 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+  var trackColor = "rgba(92,162,255,0.14)";
+  var textColor = "#e6eef6";
+
+  ctx.fillStyle = "rgba(255,255,255,0.03)";
+  ctx.fillRect(0, 0, width, height);
+
+  for (var i = 0; i < count; i++) {
+    var item = categories[i];
+    var score = item.score;
+    if (score == null || score !== score) score = 0;
+    if (score < 0) score = 0;
+    if (score > 100) score = 100;
+
+    var y = paddingY + i * (barHeight + gap);
+    var barX = paddingX + labelWidth;
+    var maxWidth = width - paddingX - barX;
+    if (maxWidth < 60) maxWidth = 60;
+    var filledWidth = maxWidth * (score / 100);
+
+    ctx.fillStyle = trackColor;
+    ctx.fillRect(barX, y, maxWidth, barHeight);
+
+    ctx.fillStyle = scoreColor(score);
+    ctx.fillRect(barX, y, filledWidth, barHeight);
+
+    ctx.fillStyle = textColor;
+    ctx.font = font;
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "left";
+    ctx.fillText(item.title, paddingX, y + barHeight / 2);
+
+    ctx.textAlign = "right";
+    var scoreLabel = Math.round(score) + " (" + grade(score) + ")";
+    ctx.fillText(scoreLabel, barX + maxWidth, y + barHeight / 2);
+  }
+}
+
 function $(id) { return document.getElementById(id); }
 
 function cardEl(title, score, items) {
@@ -87,6 +162,12 @@ function fillChips(el, items, cap) {
     return;
   }
 
+  var hasChrome = typeof chrome !== "undefined" && chrome && chrome.storage && chrome.storage.local;
+  if (!hasChrome) {
+    $("raw").textContent = JSON.stringify({ error: "chrome.storage.local unavailable", key: key }, null, 2);
+    return;
+  }
+
   chrome.storage.local.get(key, function(stored){
     var data = stored && stored[key] ? stored[key] : null;
     if (!data) {
@@ -112,12 +193,39 @@ function fillChips(el, items, cap) {
     ];
     var container = $("categoryCards");
     container.innerHTML = "";
+    var chartCanvas = $("scoreChartCanvas");
+    var chartCard = $("scoreChartCard");
+    var chartEmpty = $("scoreChartEmpty");
+    var chartData = [];
+
     catMap.forEach(function(pair){
       var title = pair[0];
       var cat = pair[1];
       if (!cat) return;
       container.appendChild(cardEl(title, cat.score, cat.items));
+      if (cat.score != null) {
+        var num = Number(cat.score);
+        if (num === num) {
+          chartData.push({ title: title, score: num });
+        }
+      }
     });
+
+    if (chartCanvas && chartCard) {
+      chartCard.style.display = "block";
+      if (chartEmpty) {
+        chartEmpty.style.display = chartData.length ? "none" : "block";
+      }
+      if (!chartCanvas.__rerenderFn) {
+        chartCanvas.__rerenderFn = function(){
+          var payload = chartCanvas.__chartData || [];
+          renderScoreChart(chartCanvas, payload);
+        };
+        window.addEventListener("resize", chartCanvas.__rerenderFn);
+      }
+      chartCanvas.__chartData = chartData;
+      chartCanvas.__rerenderFn();
+    }
 
     // Pagination (Derived) summary, if present
     var p = data.net && data.net.paginationDerived ? data.net.paginationDerived : null;

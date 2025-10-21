@@ -50,6 +50,11 @@
     .chips { display: flex; gap: 8px; flex-wrap: wrap; }
     .chip { background: var(--chip); border: 1px solid var(--border); padding: 4px 8px; border-radius: 999px; font-size: 12px; opacity: 0.9; }
 
+    .chartWrap { width: 100%; margin-top: 12px; }
+    #scoreChartCanvas { width: 100%; height: 260px; display: block; }
+    #scoreChartEmpty { margin-top: 12px; }
+    .small { font-size: 12px; }
+
     pre { margin: 0; padding: 12px; background: #0b0f14; color: #cfe5ff; border: 1px solid var(--border); border-radius: 10px; overflow: auto; font-size: 12px; line-height: 1.45; }
 
     .kv { display: grid; grid-template-columns: 160px 1fr; gap: 8px; }
@@ -71,6 +76,14 @@
   </header>
 
   <main>
+    <section class="card" id="scoreChartCard" style="display:none;">
+      <h2>Score Overview</h2>
+      <div class="chartWrap">
+        <canvas id="scoreChartCanvas"></canvas>
+      </div>
+      <div class="muted small" id="scoreChartEmpty" style="display:none;">No category scores available.</div>
+    </section>
+
     <section class="card grid-3" id="categoryCards">
       <!-- Cards inserted by report.js -->
     </section>
