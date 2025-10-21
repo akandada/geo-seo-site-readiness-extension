@@ -336,6 +336,7 @@ function fillChips(el, items, cap) {
     var catMap = [
       ["Performance", data.categories && data.categories.performance],
       ["Crawlability & SEO", data.categories && data.categories.seo],
+      ["GEO Content Optimization", data.categories && data.categories.geo],
       ["LLM Readiness", data.categories && data.categories.llm],
       ["Accessibility & Semantics", data.categories && data.categories.a11y],
       ["Infinite Scroll Pattern", data.categories && data.categories.infinite]

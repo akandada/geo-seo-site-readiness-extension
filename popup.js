@@ -146,6 +146,7 @@
     var CATS = {
       performance: { max: 35, score: 0, items: [] },
       seo:         { max: 25, score: 0, items: [] },
+      geo:         { max: 20, score: 0, items: [] },
       llm:         { max: 20, score: 0, items: [] },
       a11y:        { max: 10, score: 0, items: [] },
       infinite:    { max: 10, score: 0, items: [] }
@@ -168,7 +169,7 @@
       }
     }
 
-    // LLM & SEO signals
+    // LLM, GEO & SEO signals
     var aiBots = get(net, ["robots","bots"], {});
     var sitemapExists = get(net,["sitemap","exists"],false)===true;
     var sitemapDetail = sitemapExists ?
@@ -237,6 +238,65 @@
 
     var jsonLdCount = get(dom,["jsonLdCount"],0)||0;
     addCat("seo", 5, jsonLdCount>0, "JSON-LD present", "Add schema.org JSON-LD (WebSite/Article/FAQ/etc).", jsonLdCount>0 ? jsonLdCount + " JSON-LD script tag(s) found." : "No JSON-LD script tags detected.");
+
+    // GEO content optimization heuristics
+    var geo = get(dom,["geo"],{});
+    var geoWordTotal = Number(get(geo,["totalWords"],0)||0);
+    var uniqueRatio = Number(get(geo,["uniqueWordRatio"],0)||0);
+    var uniqueCount = Number(get(geo,["uniqueWordCount"],0)||0);
+    var uniqueDetail = geoWordTotal ? (Math.round(uniqueRatio*1000)/10) + "% unique of " + geoWordTotal + " words." : "Not enough content to evaluate.";
+    var uniqueOk = geoWordTotal < 80 ? uniqueCount>0 : uniqueRatio >= 0.45;
+    addCat("geo", 2, uniqueOk, "Healthy unique word ratio", "Expand vocabulary variety to avoid repetition.", uniqueDetail);
+
+    var topWord = get(geo,["topWord","word"],"");
+    var topCount = Number(get(geo,["topWord","count"],0)||0);
+    var topRatio = Number(get(geo,["topWord","ratio"],0)||0);
+    var stuffingDetail = topCount ? "Top term '" + topWord + "' appears " + topCount + "× (" + Math.round(topRatio*1000)/10 + "%)." : "No dominant keyword detected.";
+    var stuffingOk = geoWordTotal < 120 ? true : topRatio <= 0.08;
+    addCat("geo", 2, stuffingOk, stuffingOk ? "No keyword stuffing detected" : "Keyword concentration high", "Reduce repeated head terms; vary phrasing.", stuffingDetail);
+
+    var readability = get(geo,["readability"],{});
+    var flesch = Number(readability.flesch||0);
+    var sentCount = Number(readability.sentences||0);
+    var easyDetail = sentCount ? "Flesch reading ease ≈ " + Math.round(flesch) + " across " + sentCount + " sentences." : "Not enough sentences to measure.";
+    var easyOk = sentCount < 2 ? geoWordTotal > 0 : flesch >= 50;
+    addCat("geo", 2, easyOk, easyOk ? "Readable for general audiences" : "Reading level is dense", "Shorten sentences and use simpler wording.", easyDetail);
+
+    var authorityCount = Number(get(geo,["citationAuthorityCount"],0)||0);
+    var authoritySamples = get(geo,["citationAuthoritySamples"],[])||[];
+    var authorityDetail = authorityCount ? authorityCount + " authoritative citation(s) like " + authoritySamples.join(", ") + "." : "No authoritative citations detected.";
+    var authorityOk = authorityCount >= 2 || geoWordTotal < 150;
+    addCat("geo", 2, authorityOk, authorityOk ? "Authoritative sources cited" : "Add authoritative references", "Link to government, academic, or research sources.", authorityDetail);
+
+    var techRatio = Number(get(geo,["technicalTermRatio"],0)||0);
+    var techDetail = geoWordTotal ? Math.round(techRatio*1000)/10 + "% of terms appear technical/jargon-based." : "Not enough content to evaluate.";
+    var techOk = geoWordTotal < 150 ? true : techRatio >= 0.08;
+    addCat("geo", 2, techOk, techOk ? "Technical depth present" : "Add precise technical terminology", "Incorporate industry-specific language where appropriate.", techDetail);
+
+    var fluencyRatio = Number(get(geo,["fluency","capitalizedRatio"],0)||0);
+    var fluencyDetail = sentCount ? Math.round(fluencyRatio*100) + "% of sentences start with proper capitalization." : "Not enough sentences to measure.";
+    var fluencyOk = sentCount < 3 ? geoWordTotal > 0 : fluencyRatio >= 0.75;
+    addCat("geo", 2, fluencyOk, fluencyOk ? "Sentences flow naturally" : "Improve sentence fluency", "Revise sentence starts and transitions for smoother flow.", fluencyDetail);
+
+    var structure = get(geo,["structure"],{});
+    var structureOk = !!structure && (structure.richFormatting || structure.headings >= 2 || (structure.headings >= 1 && structure.listItems >= 3));
+    var structureDetail = structure ? "Headings: " + (structure.headings||0) + ", list items: " + (structure.listItems||0) + (structure.hasEmphasis ? ", emphasis detected" : "") : "No structure info.";
+    addCat("geo", 2, structureOk, structureOk ? "Content is well-structured" : "Add scannable structure", "Use descriptive headings, bullets, and emphasis for clarity.", structureDetail);
+
+    var externalLinks = Number(get(geo,["externalLinkCount"],0)||0);
+    var citeDetail = externalLinks ? externalLinks + " outbound reference link(s) detected." : "No outbound citations found.";
+    var citeOk = externalLinks >= 3 || authorityCount >= 1 || geoWordTotal < 120;
+    addCat("geo", 2, citeOk, citeOk ? "References cited" : "Add outbound citations", "Link to supporting articles, datasets, or studies.", citeDetail);
+
+    var quoteCount = Number(get(geo,["quoteCount"],0)||0);
+    var quoteDetail = quoteCount ? quoteCount + " quotation or blockquote instance(s)." : "No quotations detected.";
+    var quoteOk = quoteCount >= 1 || geoWordTotal < 150;
+    addCat("geo", 2, quoteOk, quoteOk ? "Quotes enrich the narrative" : "Add expert quotations", "Include quotes from subject-matter experts or stakeholders.", quoteDetail);
+
+    var statsCount = Number(get(geo,["statsCount"],0)||0);
+    var statsDetail = statsCount ? statsCount + " statistical reference(s) detected." : "No statistics detected.";
+    var statsOk = statsCount >= 1 || geoWordTotal < 150;
+    addCat("geo", 2, statsOk, statsOk ? "Statistics support claims" : "Add quantitative support", "Reference data points or percentages to substantiate claims.", statsDetail);
 
     var canonicalHref = get(dom,["canonical"],"");
     addCat("seo", 3, !!canonicalHref, "Canonical present", "Add <link rel=\"canonical\">.", canonicalHref ? "Canonical URL: " + canonicalHref : "No canonical link element detected.");
@@ -357,6 +417,7 @@
       categories: {
         performance: { score: pct(CATS.performance.score,CATS.performance.max), items: CATS.performance.items },
         seo:         { score: pct(CATS.seo.score,CATS.seo.max), items: CATS.seo.items },
+        geo:         { score: pct(CATS.geo.score,CATS.geo.max), items: CATS.geo.items },
         llm:         { score: pct(CATS.llm.score,CATS.llm.max), items: CATS.llm.items },
         a11y:        { score: pct(CATS.a11y.score,CATS.a11y.max), items: CATS.a11y.items },
         infinite:    { score: pct(CATS.infinite.score,CATS.infinite.max), items: CATS.infinite.items }
