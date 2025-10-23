@@ -150,6 +150,181 @@ function resourceHints(){ return { preconnect: qa('link[rel=\"preconnect\"]').le
 function imageStats(){ const imgs = qa('img'); const total = imgs.length || 1; const modern = imgs.filter(i => (i.src||'').match(/\.(avif|webp)(\?|$)/i)).length; const lazy = imgs.filter(i => (i.getAttribute('loading')||'').toLowerCase()==='lazy').length; return { count: imgs.length, modernPct: (modern/total)*100, lazyPct: (lazy/total)*100 }; }
 function fontStats(){ const styles = qa('style, link[rel=\"stylesheet\"]'); let haveDisplay=false; styles.forEach(s=>{ const txt = s.tagName==='STYLE' ? s.textContent : ''; if (txt && /font-display\\s*:\\s*(swap|optional)/i.test(txt)) haveDisplay = true; }); return { haveDisplay }; }
 function discoverPagination(){ const candidates = qa('a[href]'); const links = candidates.map(a => a.getAttribute('href')).filter(Boolean).map(h=>h.trim()).filter(h => /[?&](page|p|pg|pagination)=\d+/i.test(h) || /\/page\/\d+\/?$/i.test(h) || /[?&]offset=\d+/i.test(h) || /\/p\/\d+\/?$/i.test(h)).slice(0, 10); const navVisible = !!q('nav[aria-label*=\"pagination\" i], ul.pagination, .pagination, a[rel=\"next\"], a[rel=\"prev\"]'); const relNextPrev = !!q('link[rel=\"next\"], link[rel=\"prev\"]'); return { visible: navVisible, relNextPrev, links: Array.from(new Set(links)) }; }
+function describeNodeLabel(node){
+  try {
+    const tag = (node.tagName || '').toLowerCase();
+    const id = (node.getAttribute('id') || '').trim();
+    const classes = (node.getAttribute('class') || '').trim().split(/\s+/).filter(Boolean).slice(0, 2);
+    const aria = (node.getAttribute('aria-label') || '').trim();
+    const role = (node.getAttribute('role') || '').trim();
+    const dataName = (node.getAttribute('data-component') || node.getAttribute('data-module') || node.getAttribute('data-widget') || node.getAttribute('data-testid') || node.getAttribute('data-qa') || '').trim();
+    let label = tag || 'element';
+    if (id) {
+      label += '#' + id;
+    } else if (classes.length) {
+      label += '.' + classes.join('.');
+    } else if (dataName) {
+      label += '[' + dataName.slice(0, 40) + (dataName.length > 40 ? '…' : '') + ']';
+    } else if (aria) {
+      label += '[' + aria.slice(0, 40) + (aria.length > 40 ? '…' : '') + ']';
+    } else if (role) {
+      label += '(' + role + ')';
+    }
+    return label;
+  } catch (e) {
+    return 'element';
+  }
+}
+function countInteractive(node){
+  const interactiveSel = 'a[href], button, input, select, textarea, [role="button"], [role="link"], [role="tab"], [role="checkbox"], [role="switch"], [role="menuitem"]';
+  return node.querySelectorAll(interactiveSel).length;
+}
+function extractHeadings(node){
+  const headings = Array.from(node.querySelectorAll('h1,h2,h3,h4,h5,h6')).slice(0, 5);
+  return headings.map(h => {
+    const text = (h.innerText || '').replace(/\s+/g, ' ').trim();
+    return text.slice(0, 80) + (text.length > 80 ? '…' : '');
+  });
+}
+function listDataAttributes(node){
+  const out = [];
+  if (!node || !node.attributes) return out;
+  const max = Math.min(node.attributes.length, 10);
+  for (let i = 0; i < max; i++) {
+    const attr = node.attributes[i];
+    if (!attr) continue;
+    const name = attr.name || '';
+    if (name.indexOf('data-') !== 0) continue;
+    const value = (attr.value || '').trim();
+    out.push({ name, value: value.slice(0, 80) + (value.length > 80 ? '…' : '') });
+    if (out.length >= 6) break;
+  }
+  return out;
+}
+function computeComponentReport(node){
+  try {
+    const label = describeNodeLabel(node);
+    const tag = (node.tagName || '').toLowerCase();
+    const role = (node.getAttribute('role') || '').trim();
+    const depth = (function(){
+      let d = 0;
+      let cur = node;
+      while (cur && cur !== document.body && d < 40) {
+        cur = cur.parentElement;
+        d++;
+      }
+      return d;
+    })();
+
+    const rect = typeof node.getBoundingClientRect === 'function' ? node.getBoundingClientRect() : null;
+    const area = rect ? Math.round(Math.max(0, rect.width) * Math.max(0, rect.height)) : null;
+
+    const textRaw = (node.innerText || '').replace(/\s+/g, ' ').trim();
+    const words = textRaw ? textRaw.split(' ').filter(Boolean).length : 0;
+    const textPreview = textRaw ? textRaw.slice(0, 200) + (textRaw.length > 200 ? '…' : '') : '';
+
+    const headings = extractHeadings(node);
+    const headingCount = headings.length;
+
+    const linkNodes = Array.from(node.querySelectorAll('a[href]')).slice(0, 100);
+    const linkCount = linkNodes.length;
+    let externalLinkCount = 0;
+    const uniqueHosts = {};
+    const originHost = (location && location.hostname) ? location.hostname.replace(/^www\./,'') : '';
+    for (let i = 0; i < linkNodes.length; i++) {
+      const href = linkNodes[i].getAttribute('href') || '';
+      try {
+        const url = new URL(href, location.href);
+        const host = (url.hostname || '').replace(/^www\./,'');
+        if (host) uniqueHosts[host] = true;
+        if (originHost && host && host !== originHost) externalLinkCount++;
+      } catch (e) {}
+    }
+
+    const imageNodes = node.querySelectorAll('img');
+    let missingAltCount = 0;
+    for (let i = 0; i < imageNodes.length; i++) {
+      const alt = (imageNodes[i].getAttribute('alt') || '').trim();
+      if (!alt) missingAltCount++;
+    }
+
+    const listCount = node.querySelectorAll('ul,ol').length;
+    const buttonCount = node.querySelectorAll('button, [role="button"], input[type="button"], input[type="submit"], input[type="reset"], a[role="button"]').length;
+    const formCount = node.querySelectorAll('form').length;
+    const interactiveCount = countInteractive(node);
+    const mediaCount = node.querySelectorAll('video, audio, iframe, picture').length;
+    const scripts = node.querySelectorAll('script[type="application/ld+json"]');
+
+    const issues = [];
+    if (!words) issues.push('No readable text detected.');
+    if (!headingCount) issues.push('No headings found within component.');
+    if (imageNodes.length && imageNodes.length === missingAltCount) {
+      issues.push('All images missing alt text.');
+    } else if (missingAltCount) {
+      issues.push(missingAltCount + ' image(s) missing alt text.');
+    }
+    if (linkCount && !externalLinkCount) issues.push('Links present but none go off-site.');
+
+    return {
+      tag,
+      label,
+      role,
+      depth,
+      area,
+      words,
+      textPreview,
+      textLength: textRaw.length,
+      headingCount,
+      headings,
+      linkCount,
+      externalLinkCount,
+      uniqueLinkHosts: Object.keys(uniqueHosts).slice(0, 6),
+      imageCount: imageNodes.length,
+      missingAltCount,
+      listCount,
+      buttonCount,
+      formCount,
+      interactiveCount,
+      mediaCount,
+      hasStructuredData: scripts.length > 0,
+      dataAttributes: listDataAttributes(node),
+      issues
+    };
+  } catch (e) {
+    return null;
+  }
+}
+function collectComponentReports(){
+  try {
+    const selectors = ['header','main','footer','nav','aside','article','section','[role="main"]','[role="banner"]','[role="contentinfo"]','[role="complementary"]','[data-component]','[data-module]','[data-widget]','[data-testid]','[data-qa]'];
+    const nodes = [];
+    selectors.forEach(sel => {
+      qa(sel).forEach(node => {
+        if (!node || !node.tagName) return;
+        if (node === document.body || node === document.documentElement) return;
+        nodes.push(node);
+      });
+    });
+    const reports = [];
+    const mark = '__sraComponentSeen';
+    for (let i = 0; i < nodes.length; i++) {
+      const node = nodes[i];
+      if (!node || node[mark]) continue;
+      node[mark] = true;
+      const report = computeComponentReport(node);
+      if (report) reports.push(report);
+    }
+    for (let j = 0; j < nodes.length; j++) {
+      const n = nodes[j];
+      if (n && n[mark]) {
+        try { delete n[mark]; } catch (e) {}
+      }
+    }
+    return reports;
+  } catch (e) {
+    return [];
+  }
+}
 function collectWebVitalsOnce(){ return new Promise(resolve => { const out = { lcp: null, cls: 0, inp: null }; try { const poLcp = new PerformanceObserver((list)=>{ const entries=list.getEntries(); const last=entries[entries.length-1]; if (last) out.lcp = Math.round(last.startTime); }); poLcp.observe({ type: 'largest-contentful-paint', buffered: true }); const poCls = new PerformanceObserver((list)=>{ for (const e of list.getEntries()) { if (!e.hadRecentInput) out.cls += e.value; } }); poCls.observe({ type: 'layout-shift', buffered: true }); const poInp = new PerformanceObserver((list)=>{ for (const e of list.getEntries()) { const dur = e.duration; if (!out.inp || dur > out.inp) out.inp = Math.round(dur); } }); poInp.observe({ type: 'event', buffered: true, durationThreshold: 16 }); setTimeout(()=>resolve(out), 2500); } catch { resolve(out); } }); }
 async function simulateInfiniteScroll(){ const beforeCount = document.body.getElementsByTagName('*').length; const targetY = document.documentElement.scrollHeight - window.innerHeight - 5; window.scrollTo(0, Math.max(0, targetY)); const appended = await new Promise(res => { const start = Date.now(); const check = () => { const after = document.body.getElementsByTagName('*').length; if (after - beforeCount >= 20) { res(true); } else if (Date.now() - start > 2000) { res(false); } else { requestAnimationFrame(check); } }; requestAnimationFrame(check); }); return { appendedOnScroll: appended }; }
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
@@ -177,6 +352,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           images: imageStats(),
           fonts: fontStats(),
           pagination: discoverPagination(),
+          components: collectComponentReports(),
           geo: analyzeGeoContent(),
           perf,
           infinite

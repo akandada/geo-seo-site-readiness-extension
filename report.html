@@ -83,6 +83,21 @@
     .kv div { padding: 2px 0; }
     .muted { color: var(--muted); }
     .spacer { height: 8px; }
+
+    .componentList { display: flex; flex-direction: column; gap: 12px; }
+    details.component { background: var(--chip); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; font-size: 14px; }
+    details.component summary { cursor: pointer; font-weight: 600; outline: none; }
+    details.component summary::marker { color: var(--accent); }
+    .componentBody { margin-top: 10px; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .componentMetrics { background: rgba(0,0,0,0.1); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; display: grid; grid-template-columns: 1fr; gap: 6px; font-size: 12px; }
+    .componentMetric { display: flex; flex-direction: column; gap: 2px; }
+    .componentMetric .label { font-weight: 600; opacity: 0.9; }
+    .componentMetric .value { color: var(--muted); }
+    .componentBadges { display: flex; flex-wrap: wrap; gap: 6px; }
+    .componentBadge { background: rgba(230,57,70,0.2); color: #ff9fa8; border: 1px solid rgba(230,57,70,0.45); border-radius: 999px; padding: 4px 8px; font-size: 12px; }
+    .componentBadge.warn { background: rgba(227,160,8,0.18); color: #ffdca8; border-color: rgba(227,160,8,0.45); }
+    .componentPreview { grid-column: 1 / -1; background: rgba(0,0,0,0.12); border: 1px dashed var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12px; color: var(--muted); }
+    .componentMeta { display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; color: var(--muted); }
   </style>
 </head>
 <body>
@@ -151,6 +166,13 @@
         </div>
       </div>
       <div class="muted small" id="geoDeepDiveEmpty" style="display:none;">No GEO insights available.</div>
+    </section>
+
+    <section class="card" id="componentInventoryCard" style="display:none;">
+      <h2>Component Inventory</h2>
+      <div class="componentMeta" id="componentMeta"></div>
+      <div class="componentList" id="componentList"></div>
+      <div class="muted small" id="componentEmpty" style="display:none;">No component details captured.</div>
     </section>
 
     <section class="card" id="paginationCard" style="display:none;">
