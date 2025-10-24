@@ -2,6 +2,8 @@
 
 Site Readiness Auditor is a Chrome extension that evaluates a page's performance, crawlability, GEO content readiness, AI/LLM readiness, accessibility, and infinite scroll patterns. It combines DOM heuristics with network-level fetches to produce an overall readiness score and actionable suggestions.
 
+![Alt text](/screen_shot.png?raw=true "Optional Title")
+
 ## Features
 
 - **Performance heuristics** – Observes Largest Contentful Paint (LCP), Cumulative Layout Shift (CLS), and Interaction to Next Paint (INP) from the current page, scores them with Lighthouse Core Web Vitals curves, and inspects resource hints, compression, caching, and image/font usage. 【F:content.js†L23-L70】【F:popup.js†L318-L408】【F:lighthouse_metrics.js†L1-L118】
