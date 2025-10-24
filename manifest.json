@@ -35,6 +35,7 @@
       "resources": [
         "report.html",
         "report.js",
+        "report/*.js",
         "popup.css"
       ],
       "matches": [
