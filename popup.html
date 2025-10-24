@@ -22,7 +22,15 @@
       <div id="grade">—</div>
     </div>
     <p id="summaryText">Click "Run audit".</p>
+    <ul id="pageSummaries" class="page-list"></ul>
     <div id="progress" aria-live="polite"></div>
+  </section>
+
+  <section id="pathsCard" class="card">
+    <h2>Additional paths</h2>
+    <label for="pathList" class="input-label">Scan extra URLs under this origin (one per line).</label>
+    <textarea id="pathList" placeholder="/about\n/blog\n/pricing"></textarea>
+    <p class="input-note">Root-relative or full URLs only. Up to 5 extra paths; others are ignored.</p>
   </section>
 
   <section class="card">

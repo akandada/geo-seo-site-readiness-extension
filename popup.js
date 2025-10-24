@@ -17,6 +17,8 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
   var checklist      = document.getElementById("checklist");
   var suggestionsEl  = document.getElementById("suggestions");
   var catsEl         = document.getElementById("cats");
+  var pathList       = document.getElementById("pathList");
+  var pageSummaries  = document.getElementById("pageSummaries");
 
   // ---------- helpers ----------
   function gradeFromScore(score){ if(score>=90)return"A"; if(score>=80)return"B"; if(score>=70)return"C"; if(score>=60)return"D"; return"F"; }
@@ -30,6 +32,7 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
     return cur===undefined?fallback:cur;
   }
 
+  var CATEGORY_ORDER = ["performance","seo","geo","llm","a11y","infinite"];
   var lastReportKey = null;
 
   function resetProgress(){ if(progressEl) progressEl.innerHTML=""; }
@@ -39,6 +42,226 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
     div.className = "progress-item" + (state ? " " + state : "");
     div.textContent = text;
     progressEl.appendChild(div);
+  }
+
+  function delay(ms){ return new Promise(function(res){ setTimeout(res, ms); }); }
+
+  function shortLabel(url, origin){
+    try {
+      var u = new URL(url);
+      if (origin && u.origin === origin) {
+        var path = u.pathname || "/";
+        var search = u.search || "";
+        return path + search;
+      }
+      return u.origin + (u.pathname || "");
+    } catch (e) {
+      return url;
+    }
+  }
+
+  function parseAdditionalTargets(text, baseUrl){
+    var out = { urls: [], warnings: [] };
+    if (!text) return out;
+    var lines = text.split(/[\n,]/);
+    var limit = 5;
+    var seen = {};
+    var baseHref = baseUrl && baseUrl.href ? baseUrl.href.replace(/#.*$/, "") : "";
+    for (var i=0;i<lines.length;i++){
+      var raw = lines[i];
+      if (!raw) continue;
+      var trimmed = raw.trim();
+      if (!trimmed) continue;
+      var resolved = null;
+      try {
+        if (/^https?:/i.test(trimmed)) {
+          var abs = new URL(trimmed);
+          if (baseUrl && abs.origin !== baseUrl.origin) {
+            out.warnings.push("Skipped '" + trimmed + "' – different origin.");
+            continue;
+          }
+          resolved = abs.origin + abs.pathname + abs.search;
+        } else {
+          var rel = new URL(trimmed, baseUrl.origin + "/");
+          resolved = rel.origin + rel.pathname + rel.search;
+        }
+      } catch (e) {
+        out.warnings.push("Skipped '" + trimmed + "' – invalid URL or path.");
+        continue;
+      }
+      if (!resolved) continue;
+      resolved = resolved.replace(/#.*$/, "");
+      if (baseHref && resolved === baseHref) {
+        out.warnings.push("Skipped '" + trimmed + "' – already auditing active page.");
+        continue;
+      }
+      if (seen[resolved]) {
+        out.warnings.push("Skipped '" + trimmed + "' – duplicate entry.");
+        continue;
+      }
+      if (out.urls.length >= limit) {
+        out.warnings.push("Ignored '" + trimmed + "' – only the first " + limit + " additional paths are scanned.");
+        continue;
+      }
+      seen[resolved] = true;
+      out.urls.push(resolved);
+    }
+    return out;
+  }
+
+  async function waitForTabComplete(tabId){
+    if (!tabId) return;
+    try {
+      var tab = await chrome.tabs.get(tabId);
+      if (tab && tab.status === "complete") return;
+    } catch (e) {}
+    return new Promise(function(resolve){
+      var timeout = setTimeout(function(){
+        chrome.tabs.onUpdated.removeListener(listener);
+        resolve();
+      }, 15000);
+      function listener(updatedId, info){
+        if (updatedId === tabId && info && info.status === "complete"){
+          clearTimeout(timeout);
+          chrome.tabs.onUpdated.removeListener(listener);
+          resolve();
+        }
+      }
+      chrome.tabs.onUpdated.addListener(listener);
+    });
+  }
+
+  function severityValue(state){
+    if (state === "bad") return 3;
+    if (state === "warn") return 2;
+    if (state === "ok") return 1;
+    return 0;
+  }
+
+  function aggregatePageResults(pages, origin){
+    var list = Array.isArray(pages) ? pages.filter(function(p){ return p && p.audit; }) : [];
+    if (!list.length) {
+      return computeAudit({ url: origin || "" }, { url: origin || "" });
+    }
+
+    var metaPages = list.map(function(page){
+      return {
+        url: page.url,
+        label: page.label,
+        result: page.audit
+      };
+    });
+
+    if (list.length === 1) {
+      var single = list[0].audit;
+      var singleMeta = single.meta && single.meta.url ? single.meta.url : list[0].url;
+      return {
+        meta: { url: singleMeta, multi: { count: 1, origin: origin || "", pages: metaPages } },
+        overall: single.overall,
+        categories: single.categories,
+        keyChecks: single.keyChecks,
+        suggestions: single.suggestions,
+        lighthouse: single.lighthouse,
+        dom: single.dom,
+        net: single.net
+      };
+    }
+
+    var agg = {
+      meta: {
+        url: origin ? origin + " (" + list.length + " pages)" : (list[0].audit.meta && list[0].audit.meta.url) || "",
+        multi: { count: list.length, origin: origin || "", pages: metaPages }
+      },
+      overall: { score: 0, grade: "F" },
+      categories: {},
+      keyChecks: [],
+      suggestions: [],
+      lighthouse: list[0].audit.lighthouse,
+      dom: list[0].audit.dom,
+      net: list[0].audit.net
+    };
+
+    var overallTotal = 0;
+    var catTotals = {};
+    for (var ci=0; ci<CATEGORY_ORDER.length; ci++) {
+      catTotals[CATEGORY_ORDER[ci]] = 0;
+    }
+
+    for (var i=0;i<list.length;i++){
+      var res = list[i].audit;
+      var overallScore = res.overall && res.overall.score != null ? Number(res.overall.score) || 0 : 0;
+      overallTotal += overallScore;
+      for (var j=0;j<CATEGORY_ORDER.length;j++){
+        var catName = CATEGORY_ORDER[j];
+        var catObj = res.categories && res.categories[catName];
+        var catScore = catObj && catObj.score != null ? Number(catObj.score) || 0 : 0;
+        catTotals[catName] += catScore;
+      }
+    }
+
+    var avgOverall = overallTotal / list.length;
+    if (avgOverall !== avgOverall) avgOverall = 0;
+    var roundedOverall = Math.round(avgOverall);
+    agg.overall.score = roundedOverall;
+    agg.overall.grade = gradeFromScore(roundedOverall);
+
+    for (var k=0;k<CATEGORY_ORDER.length;k++){
+      var name = CATEGORY_ORDER[k];
+      var avg = catTotals[name] / list.length;
+      if (avg !== avg) avg = 0;
+      var catScoreRounded = Math.round(avg);
+      var combinedItems = [];
+      for (var li=0; li<list.length; li++){
+        var page = list[li];
+        var cat = page.audit.categories && page.audit.categories[name];
+        if (!cat || !cat.items) continue;
+        for (var ii=0; ii<cat.items.length; ii++){
+          var item = cat.items[ii];
+          if (!item) continue;
+          combinedItems.push({
+            state: item.state,
+            text: "[" + page.label + "] " + item.text,
+            detail: item.detail,
+            fix: item.fix
+          });
+        }
+      }
+      agg.categories[name] = { score: catScoreRounded, items: combinedItems };
+    }
+
+    var combinedChecks = [];
+    for (var pi=0; pi<list.length; pi++){
+      var pageRes = list[pi].audit;
+      var label = list[pi].label;
+      var kc = pageRes.keyChecks || [];
+      for (var ki=0; ki<kc.length; ki++){
+        var entry = kc[ki];
+        if (!entry) continue;
+        combinedChecks.push({
+          cat: entry.cat,
+          state: entry.state,
+          text: "[" + label + "] " + entry.text
+        });
+      }
+    }
+    combinedChecks.sort(function(a,b){ return severityValue(b.state) - severityValue(a.state); });
+    agg.keyChecks = combinedChecks.slice(0,12);
+
+    var suggestionSeen = {};
+    var suggestionList = [];
+    for (var si=0; si<list.length; si++){
+      var pageSug = list[si].audit.suggestions || [];
+      var pageLabel = list[si].label;
+      for (var sj=0; sj<pageSug.length; sj++){
+        var suggestion = "[" + pageLabel + "] " + pageSug[sj];
+        if (suggestionSeen[suggestion]) continue;
+        suggestionSeen[suggestion] = true;
+        suggestionList.push(suggestion);
+      }
+    }
+    agg.suggestions = suggestionList;
+
+    return agg;
   }
 
   // ---------- service worker wake/diagnostics ----------
@@ -69,71 +292,85 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
   // ---------- run audit ----------
   if (runBtn){
     runBtn.addEventListener("click", function(){
-      // isolate async to avoid top-level await issues on older Chrome builds
       (async function run(){
-        try{
+        try {
           runBtn.disabled = true;
+          if (reportBtn) reportBtn.disabled = true;
           resetProgress();
+          if (pageSummaries) { pageSummaries.innerHTML = ""; pageSummaries.style.display = "none"; }
           pushProgress("Starting audit…");
           if (summaryText) summaryText.textContent = "Running audit…";
 
-          const tabs = await chrome.tabs.query({ active:true, currentWindow:true });
-          const tab  = tabs && tabs[0];
+          var tabs = await chrome.tabs.query({ active:true, currentWindow:true });
+          var tab = tabs && tabs[0];
 
           if (!tab || !tab.id || !/^https?:/i.test(tab.url || "")) {
-            summaryText.textContent = "Open a normal web page (http/https) to run the audit.";
+            if (summaryText) summaryText.textContent = "Open a normal web page (http/https) to run the audit.";
             pushProgress("Active tab is not a standard web page.", "warn");
             return;
           }
 
-          // Wake background worker first
+          var baseUrl = null;
+          try { baseUrl = new URL(tab.url); }
+          catch (e) {
+            pushProgress("Unable to parse active tab URL.", "warn");
+            if (summaryText) summaryText.textContent = "Unable to parse the active tab URL.";
+            return;
+          }
+          var origin = baseUrl.origin;
+
+          var parsed = parseAdditionalTargets(pathList ? pathList.value : "", baseUrl);
+          for (var w=0; w<parsed.warnings.length; w++){
+            pushProgress(parsed.warnings[w], "warn");
+          }
+
+          var targets = [];
+          var seenMap = {};
+          function addTarget(url, label, reuseId){
+            if (!url || seenMap[url]) return;
+            seenMap[url] = true;
+            targets.push({ url: url, label: label, reuseTabId: reuseId });
+          }
+
+          addTarget(tab.url, shortLabel(tab.url, origin), tab.id);
+          for (var i=0; i<parsed.urls.length; i++){
+            addTarget(parsed.urls[i], shortLabel(parsed.urls[i], origin), null);
+          }
+
+          if (!targets.length){
+            pushProgress("No eligible URLs to audit.", "warn");
+            if (summaryText) summaryText.textContent = "No eligible URLs to audit.";
+            return;
+          }
+
           pushProgress("Waking background worker…");
           var awake = await ensureWorkerAwake();
           pushProgress(awake ? "Background worker awake." : "Background worker not responding; continuing with limited checks.", awake ? "done" : "warn");
-          if (!awake) {
+          if (!awake && summaryText) {
             summaryText.textContent = "Background didn’t start. Reload the extension, then try again.";
-            // keep going; DOM-only audit can still run
           }
 
-          var domInfo = null;
-          var netInfo = null;
-
-          try {
-            pushProgress("Collecting DOM data…");
-            domInfo = await chrome.tabs.sendMessage(tab.id, { type: "COLLECT_DOM_INFO" });
-            pushProgress(domInfo ? "DOM data collected." : "DOM data unavailable (fallback).", domInfo ? "done" : "warn");
-          } catch (e1) {
-            // Content script may not be injected or the page forbids it (e.g., Chrome Web Store)
-            console.warn("[SRA] DOM info fetch failed:", e1);
-            pushProgress("DOM data request failed.", "warn");
+          var pages = [];
+          for (var idx=0; idx<targets.length; idx++){
+            var target = targets[idx];
+            pushProgress("Auditing " + target.label + " (" + (idx+1) + "/" + targets.length + ")…");
+            var pageResult = await auditPage(target, origin);
+            pages.push(pageResult);
           }
 
-          try {
-            pushProgress("Scanning network endpoints (robots.txt, ai.txt, llms.txt, sitemap)…");
-            netInfo = await chrome.runtime.sendMessage({ type: "COLLECT_NETWORK_INFO", url: tab.url });
-            pushProgress(netInfo ? "Network scan complete." : "Network scan unavailable (fallback).", netInfo ? "done" : "warn");
-          } catch (e2) {
-            // If you hit this, open chrome://extensions → Inspect views → Service worker and check logs
-            console.warn("[SRA] Network info fetch failed:", e2);
-            pushProgress("Network scan failed.", "warn");
-          }
-
-          if (!domInfo) domInfo = { url: tab.url };
-
-          pushProgress("Calculating readiness scores…");
-          var results = computeAudit(domInfo || {}, netInfo || {});
-          render(results);
+          var aggregated = aggregatePageResults(pages, origin);
+          render(aggregated);
           pushProgress("Audit complete.", "done");
 
           lastReportKey = "audit-" + Math.random().toString(36).slice(2);
-          var saveObj = {}; saveObj[lastReportKey] = results;
+          var saveObj = {}; saveObj[lastReportKey] = aggregated;
           await chrome.storage.local.set(saveObj);
 
           if (reportBtn) reportBtn.disabled = false;
 
-        } catch(err){
+        } catch (err) {
           console.error("[SRA] Fatal error in run():", err);
-          summaryText.textContent = "Unexpected error. Open the popup console for details.";
+          if (summaryText) summaryText.textContent = "Unexpected error. Open the popup console for details.";
           pushProgress("Audit failed to complete.", "error");
         } finally {
           if (runBtn) runBtn.disabled = false;
@@ -509,6 +746,78 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
     };
   }
 
+  async function auditPage(target, origin){
+    var url = target && target.url ? target.url : "";
+    var label = target && target.label ? target.label : shortLabel(url, origin);
+    var reuseTabId = target && target.reuseTabId ? target.reuseTabId : null;
+    var domInfo = null;
+    var netInfo = null;
+    var createdTabId = null;
+
+    if (!url) {
+      pushProgress("Skipped empty URL entry.", "warn");
+      var fallback = computeAudit({ url: origin || "" }, { url: origin || "" });
+      return { url: url, label: label, audit: fallback };
+    }
+
+    if (reuseTabId) {
+      try {
+        pushProgress("Collecting DOM data for " + label + "…");
+        domInfo = await chrome.tabs.sendMessage(reuseTabId, { type: "COLLECT_DOM_INFO" });
+        pushProgress(domInfo ? "DOM data collected for " + label + "." : "DOM data unavailable for " + label + ".", domInfo ? "done" : "warn");
+      } catch (e1) {
+        console.warn("[SRA] DOM info fetch failed (active tab):", e1);
+        pushProgress("DOM data request failed for " + label + ".", "warn");
+      }
+    } else {
+      try {
+        pushProgress("Opening " + label + " in background…");
+        var newTab = await chrome.tabs.create({ url: url, active: false });
+        createdTabId = newTab && newTab.id ? newTab.id : null;
+        if (createdTabId) {
+          await waitForTabComplete(createdTabId);
+          await delay(250);
+          pushProgress("Collecting DOM data for " + label + "…");
+          try {
+            domInfo = await chrome.tabs.sendMessage(createdTabId, { type: "COLLECT_DOM_INFO" });
+            pushProgress(domInfo ? "DOM data collected for " + label + "." : "DOM data unavailable for " + label + ".", domInfo ? "done" : "warn");
+          } catch (e2) {
+            console.warn("[SRA] DOM info fetch failed (background tab):", e2);
+            pushProgress("DOM data request failed for " + label + ".", "warn");
+          }
+        } else {
+          pushProgress("Unable to create background tab for " + label + ".", "warn");
+        }
+      } catch (createErr) {
+        console.warn("[SRA] Tab creation failed for", url, createErr);
+        pushProgress("Unable to capture DOM for " + label + ".", "warn");
+      } finally {
+        if (createdTabId) {
+          try { await chrome.tabs.remove(createdTabId); } catch (removeErr) {}
+        }
+      }
+    }
+
+    if (!domInfo) domInfo = { url: url };
+    else if (!domInfo.url) domInfo.url = url;
+
+    try {
+      pushProgress("Scanning network endpoints for " + label + "…");
+      netInfo = await chrome.runtime.sendMessage({ type: "COLLECT_NETWORK_INFO", url: url });
+      pushProgress(netInfo ? "Network scan complete for " + label + "." : "Network scan unavailable for " + label + ".", netInfo ? "done" : "warn");
+    } catch (e3) {
+      console.warn("[SRA] Network info fetch failed for", url, e3);
+      pushProgress("Network scan failed for " + label + ".", "warn");
+    }
+
+    if (!netInfo) netInfo = { url: url };
+
+    var audit = computeAudit(domInfo || {}, netInfo || {});
+    if (!audit.meta) audit.meta = {};
+    if (!audit.meta.url) audit.meta.url = url;
+    return { url: url, label: label, audit: audit };
+  }
+
   // ---------- render ----------
   function render(result){
     scoreEl.textContent = result.overall.score;
@@ -518,10 +827,37 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
       result.overall.score >= 90 ? "Excellent overall readiness." :
       result.overall.score >= 75 ? "Good foundation—fix the top warnings." :
                                    "Multiple issues detected. Fix top suggestions first.";
+    var multi = result.meta && result.meta.multi ? result.meta.multi : null;
+    if (multi && multi.count > 1) {
+      summaryLine = multi.count + " pages scanned. " + summaryLine;
+    }
     if (result.lighthouse && result.lighthouse.overallScore != null) {
       summaryLine += " Lighthouse performance score " + result.lighthouse.overallScore + "/100.";
     }
     summaryText.textContent = summaryLine;
+
+    if (pageSummaries) {
+      pageSummaries.innerHTML = "";
+      if (multi && multi.pages && multi.pages.length) {
+        pageSummaries.style.display = "block";
+        for (var ps=0; ps<multi.pages.length; ps++){
+          var entry = multi.pages[ps];
+          if (!entry) continue;
+          var pageResult = entry.result || {};
+          var labelText = entry.label || (pageResult.meta && pageResult.meta.url) || entry.url || ("Page " + (ps + 1));
+          var scoreVal = pageResult.overall && pageResult.overall.score != null ? pageResult.overall.score : "—";
+          var gradeVal = pageResult.overall && pageResult.overall.grade ? pageResult.overall.grade : "—";
+          var li = document.createElement("li");
+          var strong = document.createElement("strong");
+          strong.textContent = labelText;
+          li.appendChild(strong);
+          li.appendChild(document.createTextNode(": " + scoreVal + "/100 (" + gradeVal + ")"));
+          pageSummaries.appendChild(li);
+        }
+      } else {
+        pageSummaries.style.display = "none";
+      }
+    }
 
     catsEl.innerHTML = "";
     var names = Object.keys(result.categories);

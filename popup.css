@@ -21,4 +21,12 @@ li { margin: 4px 0; }
 .progress-item.warn::before { content: "⚠ "; }
 .progress-item.error { color: #b00020; opacity: 1; }
 .progress-item.error::before { content: "✖ "; }
+.page-list { margin: 8px 0 0; padding: 0; list-style: none; }
+.page-list li { font-size: 12px; margin: 4px 0; padding: 4px 6px; border-radius: 6px; background: #f4f6fb; border: 1px solid #d6deeb;
+  color: #2c3f63; }
+.page-list li strong { font-size: 12px; }
+#pathsCard textarea { width: 100%; min-height: 72px; resize: vertical; border-radius: 6px; border: 1px solid #ccd5e3; padding: 6px;
+  font-family: inherit; font-size: 12px; line-height: 1.4; }
+.input-label { display: block; font-size: 12px; margin-bottom: 4px; color: #33415c; }
+.input-note { margin: 6px 0 0; font-size: 11px; color: #5a6b85; }
 footer { margin-top: 12px; color: #666; }
