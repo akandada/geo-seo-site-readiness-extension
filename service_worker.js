@@ -394,20 +394,48 @@ chrome.runtime.onMessage.addListener(function(msg, _sender, sendResponse){
         var allLocs = await expandSitemapsOnce(sitemapUrls);
         var patterns = inferPaginationFromUrls(allLocs);
 
-        // Build guesses for "page 2" based on patterns; fallback to generic
-        var guesses = buildPage2Guesses(msg.url, patterns);
+        // Build guesses for "page 2" based on patterns; include DOM-provided links first
+        var domPaginationLinks = Array.isArray(msg.paginationLinks) ? msg.paginationLinks : [];
+        var guesses = [];
+
+        domPaginationLinks.forEach(function(href){
+          if (typeof href !== 'string' || !href.trim()) return;
+          var abs = absolutize(msg.url, href.trim());
+          if (abs) guesses.push(abs);
+        });
+
+        // Add pattern-based guesses after direct DOM links
+        var patternGuesses = buildPage2Guesses(msg.url, patterns);
+        if (patternGuesses && patternGuesses.length) {
+          guesses = guesses.concat(patternGuesses);
+        }
+
+        // Fallback to generic patterns if still empty
         if (!guesses || !guesses.length){
           guesses = ['?page=2','&page=2','/page/2','?p=2','&p=2','?pg=2','&pg=2','?offset=20','&offset=20','/p/2']
             .map(function(s){ return absolutize(msg.url, s); })
             .filter(Boolean);
         }
 
+        // De-duplicate while preserving order, cap to reasonable count
+        var seenGuesses = {};
+        var dedupedGuesses = [];
+        for (var gi = 0; gi < guesses.length; gi++) {
+          var guessUrl = guesses[gi];
+          if (!guessUrl || seenGuesses[guessUrl]) continue;
+          seenGuesses[guessUrl] = true;
+          dedupedGuesses.push(guessUrl);
+          if (dedupedGuesses.length >= 20) break;
+        }
+        guesses = dedupedGuesses;
+
         // Try to fetch one working "page 2"
         var paginationFetch = { ok:false };
         for (var i=0;i<guesses.length;i++){
           var href = guesses[i];
           var pg = await fetchText(href);
-          if (pg.ok && pg.text && pg.text.length > 2000 && !/<html[^>]*>\s*<\/html>/i.test(pg.text)) {
+          var textLen = pg && pg.text ? pg.text.replace(/\s+/g, ' ').trim().length : 0;
+          if (pg.ok && textLen > 500 && !/<html[^>]*>\s*<\/html>/i.test(pg.text || '')) {
             paginationFetch = { ok:true, url:href, status: pg.status };
             break;
           }
