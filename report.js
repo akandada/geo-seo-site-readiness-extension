@@ -20,11 +20,11 @@ function renderOverallGauge(canvas, score) {
   var ctx = canvas.getContext("2d");
   var dpr = window.devicePixelRatio || 1;
   var parent = canvas.parentNode;
-  var size = parent && parent.clientWidth ? parent.clientWidth : 320;
-  if (size < 240) size = 240;
+  var size = parent && parent.clientWidth ? parent.clientWidth : 260;
+  if (size < 200) size = 200;
   var padding = 18;
   var radius = (size / 2) - padding;
-  if (radius < 60) radius = 60;
+  if (radius < 54) radius = 54;
   var center = size / 2;
 
   canvas.width = size * dpr;
@@ -74,11 +74,11 @@ function renderFindingBreakdown(canvas, data) {
   var ctx = canvas.getContext("2d");
   var dpr = window.devicePixelRatio || 1;
   var parent = canvas.parentNode;
-  var width = parent && parent.clientWidth ? parent.clientWidth : 420;
-  var height = width * 0.65;
-  if (height < 220) height = 220;
-  var radius = Math.min(width, height) / 2 - 24;
-  if (radius < 70) radius = 70;
+  var width = parent && parent.clientWidth ? parent.clientWidth : 340;
+  var height = width * 0.6;
+  if (height < 180) height = 180;
+  var radius = Math.min(width, height) / 2 - 20;
+  if (radius < 60) radius = 60;
   var centerX = width / 2;
   var centerY = Math.min(height / 2 + 12, height - radius - 12);
 
@@ -135,12 +135,12 @@ function renderScoreChart(canvas, categories) {
   var ctx = canvas.getContext("2d");
   var dpr = window.devicePixelRatio || 1;
   var parent = canvas.parentNode;
-  var width = parent && parent.clientWidth ? parent.clientWidth : 600;
-  var paddingX = 24;
-  var paddingY = 24;
-  var barHeight = 28;
-  var gap = 16;
-  var labelWidth = 160;
+  var width = parent && parent.clientWidth ? parent.clientWidth : 360;
+  var paddingX = 20;
+  var paddingY = 18;
+  var barHeight = 24;
+  var gap = 14;
+  var labelWidth = 140;
   var count = categories ? categories.length : 0;
   var height = paddingY * 2 + (count > 0 ? (count * barHeight + (count - 1) * gap) : 0);
 
@@ -695,12 +695,15 @@ function fillChips(el, items, cap) {
     $("overallScore").textContent = overallScore != null ? overallScore : "—";
     $("overallGrade").textContent = data.overall && data.overall.grade ? data.overall.grade : "—";
 
+    var chartDashboardCard = $("chartDashboardCard");
+    var chartPanelsVisible = false;
     var gaugeCanvas = $("overallGaugeCanvas");
     var gaugeCard = $("overallGaugeCard");
     var gaugeEmpty = $("overallGaugeEmpty");
     if (gaugeCanvas && gaugeCard) {
       if (overallScore != null && overallScore === overallScore) {
         gaugeCard.style.display = "block";
+        chartPanelsVisible = true;
         if (gaugeEmpty) gaugeEmpty.style.display = "none";
         if (!gaugeCanvas.__rerenderFn) {
           gaugeCanvas.__rerenderFn = function(){
@@ -712,6 +715,7 @@ function fillChips(el, items, cap) {
         gaugeCanvas.__rerenderFn();
       } else {
         gaugeCard.style.display = "block";
+        chartPanelsVisible = true;
         if (gaugeEmpty) gaugeEmpty.style.display = "block";
       }
     }
@@ -747,6 +751,7 @@ function fillChips(el, items, cap) {
 
     if (chartCanvas && chartCard) {
       chartCard.style.display = "block";
+      chartPanelsVisible = true;
       if (chartEmpty) {
         chartEmpty.style.display = chartData.length ? "none" : "block";
       }
@@ -788,6 +793,7 @@ function fillChips(el, items, cap) {
 
       if (breakdownData.length) {
         breakdownCard.style.display = "block";
+        chartPanelsVisible = true;
         if (breakdownEmpty) breakdownEmpty.style.display = "none";
         if (!breakdownCanvas.__rerenderFn) {
           breakdownCanvas.__rerenderFn = function(){
@@ -817,9 +823,14 @@ function fillChips(el, items, cap) {
         }
       } else {
         breakdownCard.style.display = "block";
+        chartPanelsVisible = true;
         if (breakdownEmpty) breakdownEmpty.style.display = "block";
         if (breakdownLegend) breakdownLegend.innerHTML = "";
       }
+    }
+
+    if (chartDashboardCard) {
+      chartDashboardCard.style.display = chartPanelsVisible ? "block" : "none";
     }
 
     renderLighthouseCard(data.lighthouse);
