@@ -6,6 +6,14 @@ h1 { font-size: 16px; margin: 0; }
 h2 { font-size: 14px; margin: 0 0 6px; }
 ul { margin: 0; padding-left: 16px; }
 li { margin: 4px 0; }
+.recommendations { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.recommendations li { margin: 0; padding: 6px 8px; border: 1px solid #d6deeb; border-radius: 6px; font-size: 12px; background: #f8faff; color: #1b2a4d; }
+.recommendations li strong { margin-right: 4px; }
+.recommendations li.rec-high { border-color: #e63946; color: #97202a; background: #fdebec; }
+.recommendations li.rec-medium { border-color: #e3a008; color: #715100; background: #fff5dd; }
+.recommendations li.rec-low { border-color: #5ca2ff; color: #21416e; background: #eef6ff; }
+.recommendations li.muted { border-style: dashed; background: transparent; color: #5a6b85; text-align: center; }
+.recommendations .rec-source { display: block; font-size: 11px; color: #5a6b85; margin-top: 2px; }
 .ok::before { content: "✔ "; }
 .warn::before { content: "⚠ "; }
 .bad::before { content: "✖ "; }
