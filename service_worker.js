@@ -33,6 +33,43 @@ async function fetchText(url){
     return { ok: false, status: 0, error: String(e) };
   }
 }
+async function fetchContentLengthOnly(url){
+  try {
+    const headRes = await fetch(url, { method: 'HEAD', redirect: 'follow' });
+    const headHeaders = headerLC(Object.fromEntries(headRes.headers.entries()));
+    const len = Number(headHeaders['content-length'] || headHeaders['x-file-size'] || 0);
+    if (len > 0) {
+      return { ok: true, status: headRes.status, bytes: len };
+    }
+    if (headRes.status === 405 || headRes.status === 501 || headRes.status === 400 || len <= 0) {
+      try {
+        const fallback = await fetch(url, { method: 'GET', headers: { Range: 'bytes=0-0' }, redirect: 'follow' });
+        const fallbackHeaders = headerLC(Object.fromEntries(fallback.headers.entries()));
+        const range = fallbackHeaders['content-range'] || '';
+        const match = range && range.match(/\/(\d+)$/);
+        if (fallback.body && typeof fallback.body.cancel === 'function') {
+          try { fallback.body.cancel(); } catch (e) {}
+        }
+        if (match && match[1]) {
+          const total = Number(match[1]);
+          if (total > 0) {
+            return { ok: true, status: fallback.status, bytes: total };
+          }
+        }
+        const len2 = Number(fallbackHeaders['content-length'] || fallbackHeaders['x-file-size'] || 0);
+        if (len2 > 0) {
+          return { ok: true, status: fallback.status, bytes: len2 };
+        }
+        return { ok: fallback.ok, status: fallback.status, bytes: 0 };
+      } catch (fallbackErr) {
+        return { ok: false, status: 0, error: String(fallbackErr) };
+      }
+    }
+    return { ok: headRes.ok, status: headRes.status, bytes: 0 };
+  } catch (e) {
+    return { ok: false, status: 0, error: String(e) };
+  }
+}
 
 // Require actual text file (not HTML and not a soft redirect)
 function isLikelyPlainText(resp){
@@ -402,5 +439,15 @@ chrome.runtime.onMessage.addListener(function(msg, _sender, sendResponse){
       }
     })();
     return true; // keep the message channel open for async response
+  } else if (msg && msg.type === 'FETCH_CONTENT_LENGTH') {
+    (async function(){
+      try {
+        var info = await fetchContentLengthOnly(msg.url);
+        sendResponse(info || { ok:false });
+      } catch (e) {
+        sendResponse({ ok: false, status: 0, error: String(e) });
+      }
+    })();
+    return true;
   }
 });

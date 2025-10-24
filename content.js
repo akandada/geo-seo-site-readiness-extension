@@ -176,7 +176,35 @@ function estimateDataUriSize(uri){
     return data.length;
   }
 }
-function collectMediaAssets(){
+function requestContentLength(url){
+  return new Promise(resolve => {
+    if (!url) {
+      resolve(0);
+      return;
+    }
+    if (typeof chrome === 'undefined' || !chrome.runtime || typeof chrome.runtime.sendMessage !== 'function') {
+      resolve(0);
+      return;
+    }
+    try {
+      chrome.runtime.sendMessage({ type: 'FETCH_CONTENT_LENGTH', url: url }, resp => {
+        if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.lastError) {
+          resolve(0);
+          return;
+        }
+        if (resp && resp.ok && resp.bytes && resp.bytes > 0) {
+          const num = Number(resp.bytes);
+          resolve(num > 0 ? num : 0);
+          return;
+        }
+        resolve(0);
+      });
+    } catch (err) {
+      resolve(0);
+    }
+  });
+}
+async function collectMediaAssets(){
   try {
     const allowedTypes = { img: true, image: true, video: true, audio: true, media: true, iframe: true };
     let resourceEntries = [];
@@ -300,6 +328,23 @@ function collectMediaAssets(){
         naturalHeight: null,
         occurrences: 0
       });
+    }
+
+    const fallbackTargets = [];
+    for (let fi = 0; fi < results.length && fallbackTargets.length < 15; fi++) {
+      const candidate = results[fi];
+      if (!candidate) continue;
+      if (candidate.bytes && candidate.bytes > 0) continue;
+      if (!candidate.url || candidate.url.indexOf('data:') === 0) continue;
+      fallbackTargets.push(candidate);
+    }
+
+    for (let ti = 0; ti < fallbackTargets.length; ti++) {
+      const asset = fallbackTargets[ti];
+      const fetched = await requestContentLength(asset.url);
+      if (fetched && fetched > asset.bytes) {
+        asset.bytes = fetched;
+      }
     }
 
     results.sort((a, b) => {
@@ -518,7 +563,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           mainWordCount: mainWordCount(),
           resourceHints: resourceHints(),
           images: imageStats(),
-          mediaAssets: collectMediaAssets(),
+          mediaAssets: await collectMediaAssets(),
           fonts: fontStats(),
           pagination: discoverPagination(),
           components: collectComponentReports(),
