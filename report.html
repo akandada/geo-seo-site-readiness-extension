@@ -66,13 +66,17 @@
     .geoList li .detail { color: var(--muted); font-size: 12px; }
     .geoList li.muted { color: var(--muted); background: transparent; border-style: dashed; text-align: center; }
 
-    .chartWrap { width: 100%; margin-top: 12px; }
-    .gaugeWrap { max-width: 360px; margin-left: auto; margin-right: auto; }
+    .chartDashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+    .chartPanel { background: var(--chip); border: 1px solid var(--border); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; min-height: 100%; }
+    .chartPanel h3 { margin: 0; font-size: 14px; letter-spacing: 0.2px; }
+    .chartWrap { width: 100%; margin-top: 8px; }
+    .gaugeWrap { max-width: 240px; margin-left: auto; margin-right: auto; }
     canvas.chartCanvas { width: 100%; display: block; }
-    #scoreChartCanvas { height: 260px; }
-    #overallGaugeCanvas { height: 280px; }
+    #scoreChartCanvas { height: 220px; }
+    #overallGaugeCanvas { height: 240px; }
+    #findingBreakdownCanvas { height: 220px; }
     #scoreChartEmpty, #overallGaugeEmpty, #findingBreakdownEmpty { margin-top: 12px; }
-    .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
     .legend-item { display: flex; align-items: center; gap: 8px; background: var(--chip); border: 1px solid var(--border); border-radius: 999px; padding: 6px 12px; font-size: 12px; }
     .legend-swatch { width: 10px; height: 10px; border-radius: 999px; }
     .small { font-size: 12px; }
@@ -113,20 +117,34 @@
   </header>
 
   <main>
-    <section class="card" id="overallGaugeCard" style="display:none;">
-      <h2>Overall Score</h2>
-      <div class="chartWrap gaugeWrap">
-        <canvas id="overallGaugeCanvas" class="chartCanvas"></canvas>
-      </div>
-      <div class="muted small" id="overallGaugeEmpty" style="display:none;">Overall score unavailable.</div>
-    </section>
+    <section class="card" id="chartDashboardCard" style="display:none;">
+      <h2>Score &amp; Findings Overview</h2>
+      <div class="chartDashboard">
+        <div class="chartPanel" id="overallGaugeCard" style="display:none;">
+          <h3>Overall Score</h3>
+          <div class="chartWrap gaugeWrap">
+            <canvas id="overallGaugeCanvas" class="chartCanvas"></canvas>
+          </div>
+          <div class="muted small" id="overallGaugeEmpty" style="display:none;">Overall score unavailable.</div>
+        </div>
 
-    <section class="card" id="scoreChartCard" style="display:none;">
-      <h2>Category Score Overview</h2>
-      <div class="chartWrap">
-        <canvas id="scoreChartCanvas" class="chartCanvas"></canvas>
+        <div class="chartPanel" id="scoreChartCard" style="display:none;">
+          <h3>Category Score Overview</h3>
+          <div class="chartWrap">
+            <canvas id="scoreChartCanvas" class="chartCanvas"></canvas>
+          </div>
+          <div class="muted small" id="scoreChartEmpty" style="display:none;">No category scores available.</div>
+        </div>
+
+        <div class="chartPanel" id="findingBreakdownCard" style="display:none;">
+          <h3>Finding Breakdown</h3>
+          <div class="chartWrap">
+            <canvas id="findingBreakdownCanvas" class="chartCanvas"></canvas>
+          </div>
+          <div class="legend" id="findingBreakdownLegend"></div>
+          <div class="muted small" id="findingBreakdownEmpty" style="display:none;">No findings recorded.</div>
+        </div>
       </div>
-      <div class="muted small" id="scoreChartEmpty" style="display:none;">No category scores available.</div>
     </section>
 
     <section class="card" id="lighthouseCard" style="display:none;">
@@ -134,15 +152,6 @@
       <div class="score" id="lighthouseScore">—</div>
       <div class="muted small" id="lighthouseSource"></div>
       <ul class="list" id="lighthouseMetricsList"></ul>
-    </section>
-
-    <section class="card" id="findingBreakdownCard" style="display:none;">
-      <h2>Finding Breakdown</h2>
-      <div class="chartWrap">
-        <canvas id="findingBreakdownCanvas" class="chartCanvas"></canvas>
-      </div>
-      <div class="legend" id="findingBreakdownLegend"></div>
-      <div class="muted small" id="findingBreakdownEmpty" style="display:none;">No findings recorded.</div>
     </section>
 
     <section class="card grid-3" id="categoryCards">
