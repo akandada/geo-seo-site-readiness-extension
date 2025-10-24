@@ -251,6 +251,28 @@ function mediaDisplayLabel(url) {
   }
 }
 
+function mediaUrlPath(url) {
+  if (!url) return "—";
+  if (url.indexOf("data:") === 0) return "data URI";
+  try {
+    var parsed = new URL(url);
+    var path = parsed.pathname || "/";
+    var search = parsed.search || "";
+    return path + search;
+  } catch (err) {
+    if (url.indexOf("//") === 0) {
+      try {
+        var protoParsed = new URL("https:" + url);
+        var protoPath = protoParsed.pathname || "/";
+        var protoSearch = protoParsed.search || "";
+        return protoPath + protoSearch;
+      } catch (ignore) {}
+    }
+    if (url.charAt(0) === "/") return url;
+    return "—";
+  }
+}
+
 function renderComponentInventory(components) {
   var card = $("componentInventoryCard");
   if (!card) return;
@@ -438,6 +460,12 @@ function renderMediaInventory(mediaList) {
     labelCell.textContent = mediaDisplayLabel(url);
     if (url) labelCell.title = url;
     row.appendChild(labelCell);
+
+    var pathCell = document.createElement("td");
+    var pathText = mediaUrlPath(url);
+    pathCell.textContent = pathText;
+    if (url && pathText && pathText !== "—") pathCell.title = url;
+    row.appendChild(pathCell);
 
     var typeCell = document.createElement("td");
     var typeRaw = asset.type ? String(asset.type).toLowerCase() : "";
