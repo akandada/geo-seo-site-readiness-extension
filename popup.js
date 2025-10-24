@@ -702,13 +702,14 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
     var paginationVisible   = !!get(dom,["pagination","visible"],false);
     var relNextPrevFound    = !!get(dom,["pagination","relNextPrev"],false);
 
-    var infinitePatternOK =
-      (infiniteObserved && hasPaginationLinks && pageFetchOK) ||
-      (!infiniteObserved && hasPaginationLinks && pageFetchOK);
+    var infinitePatternOK = hasPaginationLinks && (!infiniteObserved || pageFetchOK);
     var paginationLinksCount = (get(dom,["pagination","links"],[])||[]).length;
+    var infiniteMissing = [];
+    if (!hasPaginationLinks) infiniteMissing.push("pagination links");
+    if (infiniteObserved && !pageFetchOK) infiniteMissing.push("page fetch success");
     var infiniteDetail = infinitePatternOK ?
-      "Found " + paginationLinksCount + " pagination link(s) and a page 2 fetch succeeded." :
-      "Missing pagination requirements (links: " + paginationLinksCount + ", page fetch success: " + (pageFetchOK ? "yes" : "no") + ").";
+      "Found " + paginationLinksCount + " pagination link(s)" + (pageFetchOK ? " and a page 2 fetch succeeded." : ".") :
+      "Missing pagination requirements: " + (infiniteMissing.length ? infiniteMissing.join(" and ") : "unknown cause") + ".";
     addCat("infinite", 7, infinitePatternOK, "Crawlable pagination present", "Expose crawlable page 2/3 links and ensure they return content.", infiniteDetail, infinitePatternOK ? "low" : "high");
 
     var paginationVisibilityDetail = paginationVisible ?
