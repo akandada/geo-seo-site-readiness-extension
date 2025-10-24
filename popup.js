@@ -88,6 +88,7 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
     var limit = 5;
     var seen = {};
     var baseHref = baseUrl && baseUrl.href ? baseUrl.href.replace(/#.*$/, "") : "";
+    var baseOrigin = baseUrl && baseUrl.origin ? baseUrl.origin : "";
     for (var i=0;i<lines.length;i++){
       var raw = lines[i];
       if (!raw) continue;
@@ -103,7 +104,11 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
           }
           resolved = abs.origin + abs.pathname + abs.search;
         } else {
-          var rel = new URL(trimmed, baseUrl.origin + "/");
+          if (!baseOrigin) {
+            out.warnings.push("Skipped '" + trimmed + "' – unable to resolve relative path without the active page origin.");
+            continue;
+          }
+          var rel = new URL(trimmed, baseOrigin + "/");
           resolved = rel.origin + rel.pathname + rel.search;
         }
       } catch (e) {
