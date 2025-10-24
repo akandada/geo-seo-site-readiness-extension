@@ -665,6 +665,61 @@ function fillChips(el, items, cap) {
   }
 }
 
+function renderMultiPageList(multi) {
+  var card = $("multiPageCard");
+  var list = $("multiPageList");
+  if (!card || !list) return;
+  if (!multi || !multi.pages || !multi.pages.length) {
+    card.style.display = "none";
+    list.innerHTML = "";
+    return;
+  }
+
+  card.style.display = "block";
+  var title = card.querySelector("h2");
+  if (title) {
+    title.textContent = multi.count > 1 ? "Audited pages (" + multi.count + ")" : "Audited page";
+  }
+
+  list.innerHTML = "";
+  var order = ["performance","seo","geo","llm","a11y","infinite"];
+  for (var i = 0; i < multi.pages.length; i++) {
+    var entry = multi.pages[i];
+    if (!entry) continue;
+    var result = entry.result || {};
+    var overall = result.overall || {};
+    var score = overall.score != null ? overall.score : "—";
+    var gradeVal = overall.grade || "—";
+    var label = entry.label || (result.meta && result.meta.url) || entry.url || ("Page " + (i + 1));
+
+    var li = document.createElement("li");
+    li.className = "multi";
+
+    var summary = document.createElement("div");
+    summary.className = "summary";
+    summary.textContent = label + " – " + score + "/100 (" + gradeVal + ")";
+    li.appendChild(summary);
+
+    var categories = result.categories || {};
+    var parts = [];
+    for (var j = 0; j < order.length; j++) {
+      var catName = order[j];
+      var cat = categories[catName];
+      if (!cat || cat.score == null) continue;
+      var nice = catName.charAt(0).toUpperCase() + catName.slice(1);
+      parts.push(nice + " " + cat.score);
+    }
+    if (parts.length) {
+      var detail = document.createElement("div");
+      detail.className = "detail";
+      detail.textContent = parts.join(" · ");
+      li.appendChild(detail);
+    }
+
+    list.appendChild(li);
+  }
+}
+
 (function init(){
   var params = parseQuery();
   var key = params["k"];
@@ -690,10 +745,16 @@ function fillChips(el, items, cap) {
     var urlFromDom = data.dom && data.dom.url ? data.dom.url : "";
     var urlFromNet = data.net && data.net.url ? data.net.url : "";
     var finalUrl = urlFromDom || urlFromNet || "";
+    var multiInfo = data.meta && data.meta.multi ? data.meta.multi : null;
+    if (multiInfo && multiInfo.origin) {
+      finalUrl = multiInfo.origin + (multiInfo.count > 1 ? " (" + multiInfo.count + " pages)" : "");
+    }
     $("url").textContent = finalUrl;
     var overallScore = data.overall && data.overall.score != null ? data.overall.score : null;
     $("overallScore").textContent = overallScore != null ? overallScore : "—";
     $("overallGrade").textContent = data.overall && data.overall.grade ? data.overall.grade : "—";
+
+    renderMultiPageList(multiInfo);
 
     var chartDashboardCard = $("chartDashboardCard");
     var chartPanelsVisible = false;
