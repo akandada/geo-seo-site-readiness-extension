@@ -46,6 +46,27 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
 
   function delay(ms){ return new Promise(function(res){ setTimeout(res, ms); }); }
 
+  async function requestDomInfoWithRetry(tabId, attempts){
+    if (!tabId) return null;
+    var maxAttempts = attempts && attempts > 0 ? attempts : 3;
+    var lastError = null;
+    for (var i=0; i<maxAttempts; i++){
+      try {
+        return await chrome.tabs.sendMessage(tabId, { type: "COLLECT_DOM_INFO" });
+      } catch (err) {
+        lastError = err;
+        if (i < maxAttempts - 1) {
+          try { await delay(250 * (i + 1)); }
+          catch (waitErr) { /* ignore */ }
+          continue;
+        }
+        throw err;
+      }
+    }
+    if (lastError) throw lastError;
+    return null;
+  }
+
   function shortLabel(url, origin){
     try {
       var u = new URL(url);
@@ -763,7 +784,7 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
     if (reuseTabId) {
       try {
         pushProgress("Collecting DOM data for " + label + "…");
-        domInfo = await chrome.tabs.sendMessage(reuseTabId, { type: "COLLECT_DOM_INFO" });
+        domInfo = await requestDomInfoWithRetry(reuseTabId, 3);
         pushProgress(domInfo ? "DOM data collected for " + label + "." : "DOM data unavailable for " + label + ".", domInfo ? "done" : "warn");
       } catch (e1) {
         console.warn("[SRA] DOM info fetch failed (active tab):", e1);
@@ -779,7 +800,7 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
           await delay(250);
           pushProgress("Collecting DOM data for " + label + "…");
           try {
-            domInfo = await chrome.tabs.sendMessage(createdTabId, { type: "COLLECT_DOM_INFO" });
+            domInfo = await requestDomInfoWithRetry(createdTabId, 3);
             pushProgress(domInfo ? "DOM data collected for " + label + "." : "DOM data unavailable for " + label + ".", domInfo ? "done" : "warn");
           } catch (e2) {
             console.warn("[SRA] DOM info fetch failed (background tab):", e2);
