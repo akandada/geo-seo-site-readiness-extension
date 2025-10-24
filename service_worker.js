@@ -43,12 +43,12 @@ async function fetchContentLengthOnly(url){
     }
     if (headRes.status === 405 || headRes.status === 501 || headRes.status === 400 || len <= 0) {
       try {
-        const fallback = await fetch(url, { method: 'GET', headers: { Range: 'bytes=0-0' }, redirect: 'follow' });
+        const fallback = await fetch(url, { method: 'GET', redirect: 'follow' });
         const fallbackHeaders = headerLC(Object.fromEntries(fallback.headers.entries()));
         const range = fallbackHeaders['content-range'] || '';
         const match = range && range.match(/\/(\d+)$/);
         if (fallback.body && typeof fallback.body.cancel === 'function') {
-          try { fallback.body.cancel(); } catch (e) {}
+          try { await fallback.body.cancel(); } catch (e) {}
         }
         if (match && match[1]) {
           const total = Number(match[1]);
