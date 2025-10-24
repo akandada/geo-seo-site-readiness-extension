@@ -46,6 +46,35 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
 
   function delay(ms){ return new Promise(function(res){ setTimeout(res, ms); }); }
 
+  function getErrorMessage(err){
+    if (!err) return "";
+    if (typeof err === "string") return err;
+    if (typeof err.message === "string") return err.message;
+    try { return String(err); }
+    catch (e){ return ""; }
+  }
+
+  function isNoReceiverError(err){
+    var msg = getErrorMessage(err);
+    if (!msg) return false;
+    if (msg.indexOf("Could not establish connection") !== -1) return true;
+    if (msg.indexOf("Receiving end does not exist") !== -1) return true;
+    if (msg.indexOf("The message port closed before a response was received") !== -1) return true;
+    return false;
+  }
+
+  async function ensureContentScript(tabId){
+    if (!tabId) return false;
+    if (!chrome || !chrome.scripting || !chrome.scripting.executeScript) return false;
+    try {
+      await chrome.scripting.executeScript({ target: { tabId: tabId }, files: ["content.js"] });
+      return true;
+    } catch (injErr) {
+      console.warn("[SRA] Content script injection failed:", injErr);
+      return false;
+    }
+  }
+
   async function requestDomInfoWithRetry(tabId, attempts){
     if (!tabId) return null;
     var maxAttempts = attempts && attempts > 0 ? attempts : 3;
@@ -55,6 +84,15 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
         return await chrome.tabs.sendMessage(tabId, { type: "COLLECT_DOM_INFO" });
       } catch (err) {
         lastError = err;
+        if (isNoReceiverError(err)) {
+          var injected = await ensureContentScript(tabId);
+          if (injected) {
+            try { await delay(100); }
+            catch (sleepErr) { /* ignore */ }
+            i--;
+            continue;
+          }
+        }
         if (i < maxAttempts - 1) {
           try { await delay(250 * (i + 1)); }
           catch (waitErr) { /* ignore */ }
