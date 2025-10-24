@@ -22,6 +22,75 @@ Site Readiness Auditor is a Chrome extension that evaluates a page's performance
 4. **Scoring** – The popup combines DOM and network snapshots into five weighted category scores (GEO 35, SEO 25, A11y 10, Performance 20, Infinite 10), derives an overall grade, and lists key checks plus prioritized recommendations. 【F:popup.js†L421-L756】【F:popup.js†L807-L916】
 5. **Reporting** – Results are persisted under a random key. The **Open full report** button launches `report.html`, which formats category cards, pagination diagnostics, and raw JSON. 【F:popup.js†L62-L86】【F:report.js†L53-L120】
 
+## Scoring System Deep Dive
+
+The overall readiness score is the weighted sum of five categories. Each category grants points when a check passes; failing checks log guidance and may trigger recommendations. Scores are capped at their category maximums before computing the overall grade (`A ≥ 90`, `B ≥ 80`, `C ≥ 70`, `D ≥ 60`, otherwise `F`). 【F:popup.js†L24-L37】【F:popup.js†L695-L735】
+
+| Category | Max Points | Focus |
+| --- | --- | --- |
+| GEO / LLM | 35 | Crawl permissions for AI agents and AI policy declarations |
+| SEO | 25 | Discoverability, canonicalization, and snippet hygiene |
+| Accessibility | 10 | Semantic headings, alt text, language, and content depth |
+| Performance | 20 | Core Web Vitals + delivery optimizations |
+| Infinite Scroll | 10 | Crawl-friendly pagination for infinite feeds |
+
+### GEO / LLM (35 pts)
+
+The extension inspects AI policy endpoints and `robots.txt` allowances for leading AI crawlers. Passing each signal adds its weight to the GEO score:
+
+* **`ai.txt` reachable (8 pts)** – Confirms `ai.txt` responds with text so you can publish AI usage guidance. Missing or non-text responses lose the points and escalate a high-severity recommendation. 【F:popup.js†L468-L485】
+* **`llms.txt` reachable (5 pts)** – Mirrors the `ai.txt` check for long-form licensing statements. 【F:popup.js†L487-L503】
+* **Major AI bots not blocked** – Each bot contributes points when not disallowed in `robots.txt`: GPTBot (8), CommonCrawl (6), ClaudeBot (4), PerplexityBot (2), and Google-Extended (2). Blocking any bot flips the status to “bad” and surfaces remediation language. 【F:popup.js†L505-L542】
+* **AI reuse directives (0 pts, penalty logic)** – `noai` directives in headers or meta tags do not award points and subtract up to 6 pts from the GEO subtotal, reflecting the trade-off of prohibiting AI ingestion. 【F:popup.js†L544-L567】【F:popup.js†L612-L616】
+
+### SEO (25 pts)
+
+SEO checks target baseline discoverability signals:
+
+* **Sitemap discoverable (6 pts)** – Verifies `robots.txt` references a sitemap or `/sitemap.xml` exists. Missing discovery hints is high severity because many downstream checks rely on sitemaps. 【F:popup.js†L443-L457】
+* **Indexing allowed (6 pts)** – Flags `noindex` directives in either `X-Robots-Tag` headers or `<meta name="robots">` tags. Removing blockers restores the points. 【F:popup.js†L553-L566】
+* **Structured data present (5 pts)** – Awards points when at least one JSON-LD block exists. 【F:popup.js†L568-L571】
+* **Canonical URL defined (3 pts)** – Looks for `<link rel="canonical">` to avoid duplicate-index issues. 【F:popup.js†L573-L576】
+* **Title length 10–70 chars (3 pts)** – Ensures the title is concise yet descriptive. 【F:popup.js†L578-L582】
+* **Meta description 50–160 chars (2 pts)** – Validates snippet-length guidance for SERP previews. 【F:popup.js†L584-L588】
+
+### Accessibility (10 pts)
+
+Accessibility scoring focuses on quick heuristics drawn from the DOM snapshot:
+
+* **Exactly one `<h1>` (3 pts)** – Reports excess or missing primary headings. 【F:popup.js†L590-L594】
+* **All images have `alt` text (3 pts)** – Counts missing alt attributes. 【F:popup.js†L596-L600】
+* **`<html lang>` set (2 pts)** – Verifies the document language for assistive technologies. 【F:popup.js†L602-L605】
+* **≥300 words in main content (2 pts)** – Encourages substantive text for screen readers and SEO alike. 【F:popup.js†L607-L611】
+
+### Performance (20 pts)
+
+Performance points blend Lighthouse’s Core Web Vitals curves with delivery heuristics. Lighthouse metrics accumulate up to their assigned weights (`LCP` 10, `CLS` 4, `INP` 6). Additional heuristics grant points when best practices are detected; the total is clamped to 20 so Lighthouse performance remains the primary driver. 【F:popup.js†L618-L703】
+
+* **Core Web Vitals** – Uses `scoreWebVitals` to translate raw measurements into Lighthouse-style buckets, logging the measured value and percentile references. Failing metrics add targeted tuning advice. 【F:popup.js†L618-L655】【F:lighthouse_metrics.js†L1-L118】
+* **Compression enabled (5 pts)** – Requires `Content-Encoding` of `br`, `gzip`, or `zstd` on the root response. 【F:popup.js†L657-L662】
+* **Cache headers present (5 pts)** – Looks for `Cache-Control` with `max-age ≥ 1000`. 【F:popup.js†L664-L667】
+* **Resource hints (3 pts each)** – Detects `<link rel="preconnect">` and `<link rel="preload">` usage for critical origins/assets. 【F:popup.js†L669-L676】
+* **Modern image formats (2 pts)** – Awards points when ≥70% of images use WebP/AVIF. 【F:popup.js†L678-L683】
+* **Lazy-loading adoption (1 pt)** – Checks for `loading="lazy"` on ≥70% of non-critical images. 【F:popup.js†L685-L689】
+* **`font-display` usage (1 pt)** – Confirms custom fonts declare `font-display`. 【F:popup.js†L691-L694】
+
+### Infinite Scroll & Pagination (10 pts)
+
+Infinite scroll audits ensure feed-style pages remain crawlable:
+
+* **Crawlable pagination present (7 pts)** – Requires discoverable pagination links and a successful network fetch of “page 2”. Works for both traditional and infinite-loading pages. 【F:popup.js†L700-L709】
+* **Pagination visible or hinted (3 pts)** – Accepts either visible controls or `<link rel="next/prev">` hints. 【F:popup.js†L711-L716】
+* **Behavior descriptor (0 pts)** – Notes whether infinite scroll was observed during simulated scrolling. 【F:popup.js†L718-L722】
+
+### Recommendations and Key Checks
+
+Every failed check logs a short recommendation with category and severity. The popup shows the top 12 key checks (ordered by severity) plus a deduplicated recommendation list to help prioritize fixes across multiple audited pages. 【F:popup.js†L37-L74】【F:popup.js†L724-L792】【F:popup.js†L804-L856】
+
+### Multi-page Aggregation
+
+When auditing multiple URLs, scores and category items are averaged and merged. Each item is annotated with the originating page label, and recommendations consolidate identical fixes across sources. Lighthouse metrics from the first page are reused for context. 【F:popup.js†L180-L276】
+
 ## Installation (Developer Mode)
 
 1. Clone or download this repository.
