@@ -1,17 +1,17 @@
 # Site Readiness Auditor Chrome Extension
 
-Site Readiness Auditor is a Chrome extension that evaluates a page's performance, crawlability, GEO content readiness, AI/LLM readiness, accessibility, and infinite scroll patterns. It combines DOM heuristics with network-level fetches to produce an overall readiness score and actionable suggestions.
+Site Readiness Auditor is a Chrome extension that evaluates a page's performance, crawlability, GEO/LLM readiness, accessibility, and infinite scroll patterns. It combines DOM heuristics with network-level fetches to produce an overall readiness score and actionable recommendations.
 
 ![Alt text](/screen_shot.png?raw=true "Optional Title")
 
 ## Features
 
-- **Performance heuristics** – Observes Largest Contentful Paint (LCP), Cumulative Layout Shift (CLS), and Interaction to Next Paint (INP) from the current page, scores them with Lighthouse Core Web Vitals curves, and inspects resource hints, compression, caching, and image/font usage. 【F:content.js†L23-L70】【F:popup.js†L318-L408】【F:lighthouse_metrics.js†L1-L118】
-- **SEO and structured data checks** – Validates sitemap discoverability, canonical tags, title/meta description length, JSON-LD presence, and OpenGraph/Twitter metadata. 【F:popup.js†L100-L154】
-- **GEO content optimization** – Scores unique vocabulary usage, keyword balance, readability, authority, structure, sources, quotations, and statistics to mirror generative engine optimization heuristics. 【F:content.js†L19-L86】【F:popup.js†L155-L252】
-- **LLM policy awareness** – Fetches `robots.txt`, `ai.txt`, `llms.txt`, and evaluates whether major AI crawlers are allowed via robots directives or `X-Robots-Tag` headers. 【F:service_worker.js†L221-L285】【F:popup.js†L88-L134】
-- **Accessibility highlights** – Ensures a single `<h1>`, checks for missing `alt` text, verifies `<html lang>` usage, and evaluates content depth. 【F:content.js†L10-L42】【F:popup.js†L155-L166】
-- **Infinite scroll readiness** – Detects infinite scroll behavior, ensures crawlable pagination URLs exist, and verifies that fetching a “page 2” URL returns content. 【F:content.js†L43-L70】【F:service_worker.js†L286-L364】【F:popup.js†L175-L197】
+- **Performance heuristics** – Observes Largest Contentful Paint (LCP), Cumulative Layout Shift (CLS), and Interaction to Next Paint (INP), scores them with Lighthouse Core Web Vitals curves, and inspects resource hints, compression, caching, and image/font usage. 【F:content.js†L213-L348】【F:popup.js†L609-L713】【F:lighthouse_metrics.js†L1-L118】
+- **SEO and structured data checks** – Validates sitemap discoverability, canonical tags, title/meta description length, and JSON-LD presence. 【F:popup.js†L454-L515】
+- **GEO / LLM readiness** – Fetches `robots.txt`, `ai.txt`, `llms.txt`, and evaluates whether major AI crawlers are allowed, while reporting AI policy directives that block ingestion. 【F:service_worker.js†L220-L423】【F:popup.js†L421-L487】
+- **GEO content deep dive** – Captures word counts, readability, structure, outbound references, quotes, and stats for the detailed report view. 【F:content.js†L19-L203】【F:report.js†L962-L1033】
+- **Accessibility highlights** – Ensures a single `<h1>`, checks for missing `alt` text, verifies `<html lang>` usage, and evaluates content depth. 【F:content.js†L10-L42】【F:popup.js†L515-L542】
+- **Infinite scroll readiness** – Detects infinite scroll behavior, ensures crawlable pagination URLs exist, and verifies that fetching a “page 2” URL returns content. 【F:content.js†L349-L466】【F:service_worker.js†L286-L423】【F:popup.js†L713-L756】
 - **Shareable reports** – Saves the latest audit to `chrome.storage.local`, renders a detailed report page, and preserves raw data for debugging. 【F:popup.js†L62-L86】【F:report.js†L1-L120】
 
 ## How it Works
@@ -19,7 +19,7 @@ Site Readiness Auditor is a Chrome extension that evaluates a page's performance
 1. **Popup trigger** – Clicking **Run audit** in `popup.html` wakes the background service worker and queries the active tab. 【F:popup.js†L25-L86】
 2. **DOM collection** – The content script (`content.js`) listens for `COLLECT_DOM_INFO`, gathers metadata and in-page signals, and simulates a scroll to detect dynamically injected content. 【F:content.js†L1-L70】
 3. **Network collection** – The service worker (`service_worker.js`) fetches site-level resources (robots, sitemap, AI policies) and infers pagination patterns from discovered sitemap URLs. 【F:service_worker.js†L33-L364】
-4. **Scoring** – The popup combines DOM and network snapshots into six category scores, derives an overall grade, and lists key checks plus suggestions. 【F:popup.js†L88-L252】
+4. **Scoring** – The popup combines DOM and network snapshots into five weighted category scores (GEO 35, SEO 25, A11y 10, Performance 20, Infinite 10), derives an overall grade, and lists key checks plus prioritized recommendations. 【F:popup.js†L421-L756】【F:popup.js†L807-L916】
 5. **Reporting** – Results are persisted under a random key. The **Open full report** button launches `report.html`, which formats category cards, pagination diagnostics, and raw JSON. 【F:popup.js†L62-L86】【F:report.js†L53-L120】
 
 ## Installation (Developer Mode)
@@ -33,7 +33,7 @@ Site Readiness Auditor is a Chrome extension that evaluates a page's performance
 
 1. Navigate to any HTTP/HTTPS web page.
 2. Click the extension icon and press **Run audit**.
-3. Review the summarized score, category breakdown, and suggestions in the popup.
+3. Review the summarized score, category breakdown, and recommendations in the popup.
 4. (Optional) Click **Open full report** to inspect the detailed report and raw JSON snapshot.
 
 ## Storage and Privacy

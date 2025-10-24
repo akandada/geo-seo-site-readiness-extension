@@ -15,6 +15,22 @@ function scoreColor(score) {
   return "#e63946";
 }
 
+function recommendationSeverityValue(sev) {
+  if (sev === "high") return 3;
+  if (sev === "medium") return 2;
+  if (sev === "low") return 1;
+  return 0;
+}
+
+function categoryLabel(name) {
+  if (name === "geo") return "GEO / LLM";
+  if (name === "a11y") return "Accessibility";
+  if (name === "seo") return "SEO";
+  if (name === "performance") return "Performance";
+  if (name === "infinite") return "Infinite Scroll";
+  return name;
+}
+
 function renderOverallGauge(canvas, score) {
   if (!canvas || !canvas.getContext) return;
   var ctx = canvas.getContext("2d");
@@ -835,7 +851,7 @@ function renderMultiPageList(multi) {
   }
 
   list.innerHTML = "";
-  var order = ["performance","seo","geo","llm","a11y","infinite"];
+  var order = ["geo","seo","a11y","performance","infinite"];
   for (var i = 0; i < multi.pages.length; i++) {
     var entry = multi.pages[i];
     if (!entry) continue;
@@ -859,7 +875,7 @@ function renderMultiPageList(multi) {
       var catName = order[j];
       var cat = categories[catName];
       if (!cat || cat.score == null) continue;
-      var nice = catName.charAt(0).toUpperCase() + catName.slice(1);
+      var nice = categoryLabel(catName);
       parts.push(nice + " " + cat.score);
     }
     if (parts.length) {
@@ -936,11 +952,10 @@ function renderMultiPageList(multi) {
 
     // Category cards
     var catMap = [
-      ["Performance", data.categories && data.categories.performance],
+      ["GEO / LLM Readiness", data.categories && data.categories.geo],
       ["Crawlability & SEO", data.categories && data.categories.seo],
-      ["GEO Content Optimization", data.categories && data.categories.geo],
-      ["LLM Readiness", data.categories && data.categories.llm],
       ["Accessibility & Semantics", data.categories && data.categories.a11y],
+      ["Performance", data.categories && data.categories.performance],
       ["Infinite Scroll Pattern", data.categories && data.categories.infinite]
     ];
     var container = $("categoryCards");
@@ -1069,20 +1084,45 @@ function renderMultiPageList(multi) {
     }
 
     // Suggestions
-    var sug = $("suggestions");
-    sug.innerHTML = "";
-    var suggs = data.suggestions || [];
-    if (!suggs.length) {
-      var li0 = document.createElement("li");
-      li0.className = "muted";
-      li0.textContent = "No suggestions.";
-      sug.appendChild(li0);
-    } else {
-      suggs.forEach(function(s){
-        var li = document.createElement("li");
-        li.textContent = s;
-        sug.appendChild(li);
-      });
+    var recList = $("recommendations");
+    if (recList) {
+      recList.innerHTML = "";
+      var recData = data.recommendations || [];
+      if (!recData.length) {
+        var li0 = document.createElement("li");
+        li0.className = "muted";
+        li0.textContent = "No recommendations.";
+        recList.appendChild(li0);
+      } else {
+        recData.sort(function(a, b){
+          var diff = recommendationSeverityValue(b.severity || "medium") - recommendationSeverityValue(a.severity || "medium");
+          if (diff !== 0) return diff;
+          return (a.text || "").localeCompare(b.text || "");
+        });
+        recData.forEach(function(rec){
+          if (!rec || !rec.text) return;
+          var li = document.createElement("li");
+          var sev = (rec.severity || "medium").toLowerCase();
+          li.className = sev === "high" ? "bad" : (sev === "medium" ? "warn" : "ok");
+          var summary = document.createElement("div");
+          summary.className = "summary";
+          var category = rec.category ? rec.category.toUpperCase() : "GENERAL";
+          summary.textContent = "[" + category + "] " + rec.text;
+          li.appendChild(summary);
+          if (rec.sources && rec.sources.length) {
+            var detail = document.createElement("div");
+            detail.className = "detail";
+            var srcList = rec.sources.slice(0, 5);
+            var srcText = srcList.join(", ");
+            if (rec.sources.length > srcList.length) {
+              srcText += " +" + (rec.sources.length - srcList.length) + " more";
+            }
+            detail.textContent = "Pages: " + srcText;
+            li.appendChild(detail);
+          }
+          recList.appendChild(li);
+        });
+      }
     }
 
     // Raw
