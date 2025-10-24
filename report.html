@@ -102,6 +102,13 @@
     .componentBadge.warn { background: rgba(227,160,8,0.18); color: #ffdca8; border-color: rgba(227,160,8,0.45); }
     .componentPreview { grid-column: 1 / -1; background: rgba(0,0,0,0.12); border: 1px dashed var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12px; color: var(--muted); }
     .componentMeta { display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; color: var(--muted); }
+    .tableWrap { overflow-x: auto; margin-top: 8px; }
+    table.dataTable { width: 100%; min-width: 480px; border-collapse: collapse; font-size: 13px; }
+    table.dataTable th, table.dataTable td { padding: 6px 10px; border-bottom: 1px solid var(--border); text-align: left; }
+    table.dataTable th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--muted); background: rgba(92,162,255,0.08); }
+    table.dataTable td:nth-child(1), table.dataTable th:nth-child(1) { width: 40px; text-align: right; }
+    table.dataTable td:nth-child(4), table.dataTable th:nth-child(4) { white-space: nowrap; }
+    table.dataTable tbody tr:last-child td { border-bottom: none; }
   </style>
 </head>
 <body>
@@ -187,6 +194,25 @@
       <div class="componentMeta" id="componentMeta"></div>
       <div class="componentList" id="componentList"></div>
       <div class="muted small" id="componentEmpty" style="display:none;">No component details captured.</div>
+    </section>
+
+    <section class="card" id="mediaInventoryCard" style="display:none;">
+      <h2>Largest Media Assets</h2>
+      <div class="tableWrap" id="mediaInventoryWrap" style="display:none;">
+        <table class="dataTable" id="mediaInventoryTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Asset</th>
+              <th>Type</th>
+              <th>Size</th>
+              <th>Details</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="muted small" id="mediaInventoryEmpty" style="display:none;">No media resources detected.</div>
     </section>
 
     <section class="card" id="paginationCard" style="display:none;">
