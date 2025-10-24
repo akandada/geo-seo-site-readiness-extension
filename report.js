@@ -214,6 +214,43 @@ function formatList(arr, max) {
   return slice.join(", ") + (arr.length > slice.length ? "…" : "");
 }
 
+function formatBytes(bytes) {
+  var num = Number(bytes);
+  if (!(num > 0)) return "—";
+  var units = ["B", "KB", "MB", "GB", "TB"];
+  var idx = 0;
+  while (num >= 1024 && idx < units.length - 1) {
+    num = num / 1024;
+    idx++;
+  }
+  var precision = idx === 0 || num >= 100 ? 0 : 1;
+  var rounded = Math.round(num * Math.pow(10, precision)) / Math.pow(10, precision);
+  return rounded.toFixed(precision) + " " + units[idx];
+}
+
+function mediaDisplayLabel(url) {
+  if (!url) return "Unknown";
+  if (url.indexOf("data:") === 0) return "data URI";
+  try {
+    var u = new URL(url);
+    var path = u.pathname || "";
+    var segments = path.split("/").filter(function(part){ return part; });
+    var file = segments.length ? segments[segments.length - 1] : "";
+    var host = u.hostname || "";
+    var label = file || host || url;
+    if (host && file) {
+      label += " · " + host;
+    }
+    if (label.length > 80) {
+      label = label.slice(0, 77) + "…";
+    }
+    return label;
+  } catch (e) {
+    if (url.length > 80) return url.slice(0, 77) + "…";
+    return url;
+  }
+}
+
 function renderComponentInventory(components) {
   var card = $("componentInventoryCard");
   if (!card) return;
@@ -349,6 +386,94 @@ function renderComponentInventory(components) {
     details.appendChild(body);
     if (list) list.appendChild(details);
   });
+}
+
+function renderMediaInventory(mediaList) {
+  var card = $("mediaInventoryCard");
+  if (!card) return;
+  var wrap = $("mediaInventoryWrap");
+  var table = $("mediaInventoryTable");
+  var empty = $("mediaInventoryEmpty");
+  var tbody = table ? table.querySelector("tbody") : null;
+  if (!tbody && table) {
+    tbody = document.createElement("tbody");
+    table.appendChild(tbody);
+  }
+
+  var list = Array.isArray(mediaList) ? mediaList : [];
+
+  if (!list.length) {
+    card.style.display = "block";
+    if (wrap) wrap.style.display = "none";
+    if (empty) empty.style.display = "block";
+    if (tbody) tbody.innerHTML = "";
+    return;
+  }
+
+  card.style.display = "block";
+  if (wrap) wrap.style.display = "block";
+  if (empty) empty.style.display = "none";
+  if (tbody) tbody.innerHTML = "";
+
+  var sorted = list.slice().sort(function(a, b){
+    var aSize = a && a.bytes ? a.bytes : 0;
+    var bSize = b && b.bytes ? b.bytes : 0;
+    if (bSize !== aSize) return bSize - aSize;
+    var aUrl = a && a.url ? a.url : "";
+    var bUrl = b && b.url ? b.url : "";
+    return aUrl.localeCompare(bUrl);
+  });
+
+  var limit = sorted.length > 25 ? 25 : sorted.length;
+  for (var i = 0; i < limit; i++) {
+    var asset = sorted[i] || {};
+    var row = document.createElement("tr");
+
+    var rankCell = document.createElement("td");
+    rankCell.textContent = String(i + 1);
+    row.appendChild(rankCell);
+
+    var labelCell = document.createElement("td");
+    var url = asset.url || "";
+    labelCell.textContent = mediaDisplayLabel(url);
+    if (url) labelCell.title = url;
+    row.appendChild(labelCell);
+
+    var typeCell = document.createElement("td");
+    var typeRaw = asset.type ? String(asset.type).toLowerCase() : "";
+    if (typeRaw === "img") typeRaw = "image";
+    if (typeRaw) {
+      typeCell.textContent = typeRaw.charAt(0).toUpperCase() + typeRaw.slice(1);
+    } else {
+      typeCell.textContent = "—";
+    }
+    row.appendChild(typeCell);
+
+    var sizeCell = document.createElement("td");
+    sizeCell.textContent = formatBytes(asset.bytes);
+    row.appendChild(sizeCell);
+
+    var detailCell = document.createElement("td");
+    var details = [];
+    var naturalW = asset && asset.naturalWidth != null ? Number(asset.naturalWidth) : null;
+    var naturalH = asset && asset.naturalHeight != null ? Number(asset.naturalHeight) : null;
+    if (naturalW > 0 && naturalH > 0) {
+      details.push("natural " + naturalW + "×" + naturalH + " px");
+    }
+    var displayW = asset && asset.displayWidth != null ? Number(asset.displayWidth) : null;
+    var displayH = asset && asset.displayHeight != null ? Number(asset.displayHeight) : null;
+    if (displayW > 0 && displayH > 0) {
+      details.push("rendered " + displayW + "×" + displayH + " px");
+    }
+    var occ = asset && asset.occurrences != null ? Number(asset.occurrences) : 0;
+    if (occ > 1) {
+      details.push(occ + " uses");
+    }
+    detailCell.textContent = details.length ? details.join(" · ") : "—";
+    row.appendChild(detailCell);
+
+    if (tbody) tbody.appendChild(row);
+  }
 }
 
 function buildGeoReportEntries(geo) {
@@ -897,6 +1022,7 @@ function renderMultiPageList(multi) {
     renderLighthouseCard(data.lighthouse);
     renderGeoDeepDive(data.dom && data.dom.geo ? data.dom.geo : null, data.categories && data.categories.geo ? data.categories.geo : null);
     renderComponentInventory(data.dom && data.dom.components ? data.dom.components : null);
+    renderMediaInventory(data.dom && data.dom.mediaAssets ? data.dom.mediaAssets : null);
 
     // Pagination (Derived) summary, if present
     var p = data.net && data.net.paginationDerived ? data.net.paginationDerived : null;

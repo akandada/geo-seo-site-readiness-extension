@@ -149,6 +149,174 @@ function analyzeGeoContent(){
 function resourceHints(){ return { preconnect: qa('link[rel=\"preconnect\"]').length, preload: qa('link[rel=\"preload\"]').length, dnsPrefetch: qa('link[rel=\"dns-prefetch\"]').length }; }
 function imageStats(){ const imgs = qa('img'); const total = imgs.length || 1; const modern = imgs.filter(i => (i.src||'').match(/\.(avif|webp)(\?|$)/i)).length; const lazy = imgs.filter(i => (i.getAttribute('loading')||'').toLowerCase()==='lazy').length; return { count: imgs.length, modernPct: (modern/total)*100, lazyPct: (lazy/total)*100 }; }
 function fontStats(){ const styles = qa('style, link[rel=\"stylesheet\"]'); let haveDisplay=false; styles.forEach(s=>{ const txt = s.tagName==='STYLE' ? s.textContent : ''; if (txt && /font-display\\s*:\\s*(swap|optional)/i.test(txt)) haveDisplay = true; }); return { haveDisplay }; }
+
+function normalizeMediaUrl(url){
+  if (!url) return '';
+  try {
+    var absolute = new URL(url, location.href);
+    absolute.hash = '';
+    return absolute.href;
+  } catch (e) {
+    return url;
+  }
+}
+function estimateDataUriSize(uri){
+  if (!uri || uri.indexOf('data:') !== 0) return 0;
+  const comma = uri.indexOf(',');
+  if (comma < 0) return 0;
+  const meta = uri.slice(0, comma);
+  const data = uri.slice(comma + 1);
+  if (/;base64/i.test(meta)) {
+    const len = data.length;
+    return Math.floor(len * 0.75);
+  }
+  try {
+    return decodeURIComponent(data).length;
+  } catch (e) {
+    return data.length;
+  }
+}
+function collectMediaAssets(){
+  try {
+    const allowedTypes = { img: true, image: true, video: true, audio: true, media: true, iframe: true };
+    let resourceEntries = [];
+    try {
+      if (typeof performance !== 'undefined' && performance && typeof performance.getEntriesByType === 'function') {
+        resourceEntries = performance.getEntriesByType('resource');
+      }
+    } catch (e) {
+      resourceEntries = [];
+    }
+    resourceEntries = Array.isArray(resourceEntries) ? resourceEntries : Array.from(resourceEntries || []);
+
+    const resourceMap = {};
+    const originalMap = {};
+    for (let i = 0; i < resourceEntries.length; i++) {
+      const entry = resourceEntries[i];
+      if (!entry) continue;
+      const initiator = String(entry.initiatorType || '').toLowerCase();
+      if (!allowedTypes[initiator]) continue;
+      let size = 0;
+      const transfer = Number(entry.transferSize || 0);
+      if (transfer > size) size = transfer;
+      const encoded = Number(entry.encodedBodySize || 0);
+      if (encoded > size) size = encoded;
+      const decoded = Number(entry.decodedBodySize || 0);
+      if (decoded > size) size = decoded;
+      const name = entry.name || '';
+      const norm = normalizeMediaUrl(name);
+      if (norm) {
+        if (!resourceMap[norm] || resourceMap[norm].size < size) {
+          resourceMap[norm] = { size: size, type: initiator || 'media', name: name };
+        }
+      }
+      if (name && (!originalMap[name] || originalMap[name].size < size)) {
+        originalMap[name] = { size: size, type: initiator || 'media', name: name };
+      }
+    }
+
+    const nodes = qa('img, video, audio, iframe');
+    const aggregate = {};
+    for (let ni = 0; ni < nodes.length; ni++) {
+      const el = nodes[ni];
+      if (!el || !el.tagName) continue;
+      const tag = (el.tagName || '').toLowerCase();
+      let src = '';
+      if (tag === 'img' || tag === 'video' || tag === 'audio') {
+        src = el.currentSrc || el.src || '';
+      } else if (tag === 'iframe') {
+        src = el.src || '';
+      }
+      if (!src) continue;
+      const key = normalizeMediaUrl(src) || src;
+      if (!aggregate[key]) {
+        aggregate[key] = {
+          url: src,
+          type: tag,
+          bytes: 0,
+          displayWidth: null,
+          displayHeight: null,
+          naturalWidth: null,
+          naturalHeight: null,
+          occurrences: 0
+        };
+      }
+      const entryObj = aggregate[key];
+      if (!entryObj.type && tag) entryObj.type = tag;
+      entryObj.occurrences += 1;
+      const rect = typeof el.getBoundingClientRect === 'function' ? el.getBoundingClientRect() : null;
+      if (rect) {
+        const w = Math.round(Math.max(rect.width || 0, 0));
+        const h = Math.round(Math.max(rect.height || 0, 0));
+        if (w > 0 && (entryObj.displayWidth == null || w > entryObj.displayWidth)) entryObj.displayWidth = w;
+        if (h > 0 && (entryObj.displayHeight == null || h > entryObj.displayHeight)) entryObj.displayHeight = h;
+      }
+      if (tag === 'img') {
+        if (el.naturalWidth && (entryObj.naturalWidth == null || el.naturalWidth > entryObj.naturalWidth)) entryObj.naturalWidth = el.naturalWidth;
+        if (el.naturalHeight && (entryObj.naturalHeight == null || el.naturalHeight > entryObj.naturalHeight)) entryObj.naturalHeight = el.naturalHeight;
+      } else if (tag === 'video') {
+        if (el.videoWidth && (entryObj.naturalWidth == null || el.videoWidth > entryObj.naturalWidth)) entryObj.naturalWidth = el.videoWidth;
+        if (el.videoHeight && (entryObj.naturalHeight == null || el.videoHeight > entryObj.naturalHeight)) entryObj.naturalHeight = el.videoHeight;
+      }
+    }
+
+    const results = [];
+    for (const key in aggregate) {
+      if (!Object.prototype.hasOwnProperty.call(aggregate, key)) continue;
+      const agg = aggregate[key];
+      const match = resourceMap[key] || originalMap[agg.url] || null;
+      if (match && match.size != null && match.size > agg.bytes) {
+        agg.bytes = match.size;
+      }
+      if (match && match.type && !agg.type) {
+        agg.type = match.type;
+      }
+      if (!agg.bytes && agg.url && agg.url.indexOf('data:') === 0) {
+        agg.bytes = estimateDataUriSize(agg.url);
+      }
+      results.push({
+        url: agg.url,
+        type: agg.type,
+        bytes: agg.bytes,
+        displayWidth: agg.displayWidth,
+        displayHeight: agg.displayHeight,
+        naturalWidth: agg.naturalWidth,
+        naturalHeight: agg.naturalHeight,
+        occurrences: agg.occurrences
+      });
+    }
+
+    for (const resKey in resourceMap) {
+      if (!Object.prototype.hasOwnProperty.call(resourceMap, resKey)) continue;
+      if (aggregate[resKey]) continue;
+      const perfEntry = resourceMap[resKey];
+      results.push({
+        url: perfEntry && perfEntry.name ? perfEntry.name : resKey,
+        type: perfEntry && perfEntry.type ? perfEntry.type : 'media',
+        bytes: perfEntry && perfEntry.size ? perfEntry.size : 0,
+        displayWidth: null,
+        displayHeight: null,
+        naturalWidth: null,
+        naturalHeight: null,
+        occurrences: 0
+      });
+    }
+
+    results.sort((a, b) => {
+      const aSize = a && a.bytes ? a.bytes : 0;
+      const bSize = b && b.bytes ? b.bytes : 0;
+      if (bSize !== aSize) return bSize - aSize;
+      const aUrl = a && a.url ? a.url : '';
+      const bUrl = b && b.url ? b.url : '';
+      return aUrl.localeCompare(bUrl);
+    });
+
+    if (results.length > 40) return results.slice(0, 40);
+    return results;
+  } catch (e) {
+    return [];
+  }
+}
 function discoverPagination(){ const candidates = qa('a[href]'); const links = candidates.map(a => a.getAttribute('href')).filter(Boolean).map(h=>h.trim()).filter(h => /[?&](page|p|pg|pagination)=\d+/i.test(h) || /\/page\/\d+\/?$/i.test(h) || /[?&]offset=\d+/i.test(h) || /\/p\/\d+\/?$/i.test(h)).slice(0, 10); const navVisible = !!q('nav[aria-label*=\"pagination\" i], ul.pagination, .pagination, a[rel=\"next\"], a[rel=\"prev\"]'); const relNextPrev = !!q('link[rel=\"next\"], link[rel=\"prev\"]'); return { visible: navVisible, relNextPrev, links: Array.from(new Set(links)) }; }
 function describeNodeLabel(node){
   try {
@@ -350,6 +518,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           mainWordCount: mainWordCount(),
           resourceHints: resourceHints(),
           images: imageStats(),
+          mediaAssets: collectMediaAssets(),
           fonts: fontStats(),
           pagination: discoverPagination(),
           components: collectComponentReports(),
