@@ -362,7 +362,39 @@ async function collectMediaAssets(){
     return [];
   }
 }
-function discoverPagination(){ const candidates = qa('a[href]'); const links = candidates.map(a => a.getAttribute('href')).filter(Boolean).map(h=>h.trim()).filter(h => /[?&](page|p|pg|pagination)=\d+/i.test(h) || /\/page\/\d+\/?$/i.test(h) || /[?&]offset=\d+/i.test(h) || /\/p\/\d+\/?$/i.test(h)).slice(0, 10); const navVisible = !!q('nav[aria-label*=\"pagination\" i], ul.pagination, .pagination, a[rel=\"next\"], a[rel=\"prev\"]'); const relNextPrev = !!q('link[rel=\"next\"], link[rel=\"prev\"]'); return { visible: navVisible, relNextPrev, links: Array.from(new Set(links)) }; }
+function isPaginationHref(href){
+  if (!href) return false;
+  var trimmed = href.trim();
+  if (!trimmed) return false;
+  if (/[?&](?:page|paged|page_no|page_num|pageno|pagenum|pageindex|pagenumber|p|pg|pagination|start|offset|skip|from|begin)=\d+/i.test(trimmed)) return true;
+  if (/[?&][a-z0-9_-]*page[a-z0-9_-]*=\d+/i.test(trimmed)) return true;
+  if (/\/(?:page|paged|p|pg|pagination)[-_/]?\d+(?:[/?#]|$)/i.test(trimmed)) return true;
+  return false;
+}
+function discoverPagination(){
+  try {
+    var candidates = qa('a[href]');
+    var hrefs = [];
+    for (var i = 0; i < candidates.length; i++) {
+      var a = candidates[i];
+      if (!a) continue;
+      var h = a.getAttribute('href');
+      if (isPaginationHref(h)) hrefs.push(h.trim());
+      if (hrefs.length >= 20) break;
+    }
+    var relLinks = qa('link[rel="next"], link[rel="prev"]');
+    for (var j = 0; j < relLinks.length; j++) {
+      var relHref = relLinks[j] && relLinks[j].getAttribute('href');
+      if (isPaginationHref(relHref)) hrefs.push(relHref.trim());
+    }
+    var unique = Array.from(new Set(hrefs)).slice(0, 10);
+    var navVisible = !!q('nav[aria-label*="pagination" i], ul.pagination, .pagination, a[rel="next"], a[rel="prev"]');
+    var relNextPrev = relLinks.length > 0;
+    return { visible: navVisible, relNextPrev: relNextPrev, links: unique };
+  } catch (e) {
+    return { visible: false, relNextPrev: false, links: [] };
+  }
+}
 function describeNodeLabel(node){
   try {
     const tag = (node.tagName || '').toLowerCase();
