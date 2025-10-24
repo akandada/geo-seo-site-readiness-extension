@@ -843,7 +843,15 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
 
     try {
       pushProgress("Scanning network endpoints for " + label + "…");
-      netInfo = await chrome.runtime.sendMessage({ type: "COLLECT_NETWORK_INFO", url: url });
+      var paginationLinksForNet = [];
+      try {
+        var rawLinks = get(domInfo, ["pagination", "links"], []);
+        if (Array.isArray(rawLinks) && rawLinks.length) {
+          paginationLinksForNet = rawLinks.filter(function(link){ return typeof link === "string" && link.trim(); });
+        }
+      } catch (linkErr) { /* ignore and fall back to empty list */ }
+
+      netInfo = await chrome.runtime.sendMessage({ type: "COLLECT_NETWORK_INFO", url: url, paginationLinks: paginationLinksForNet });
       pushProgress(netInfo ? "Network scan complete for " + label + "." : "Network scan unavailable for " + label + ".", netInfo ? "done" : "warn");
     } catch (e3) {
       console.warn("[SRA] Network info fetch failed for", url, e3);
