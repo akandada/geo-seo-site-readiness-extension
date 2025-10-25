@@ -63,18 +63,6 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
     return false;
   }
 
-  async function ensureContentScript(tabId){
-    if (!tabId) return false;
-    if (!chrome || !chrome.scripting || !chrome.scripting.executeScript) return false;
-    try {
-      await chrome.scripting.executeScript({ target: { tabId: tabId }, files: ["content.js"] });
-      return true;
-    } catch (injErr) {
-      console.warn("[SRA] Content script injection failed:", injErr);
-      return false;
-    }
-  }
-
   async function requestDomInfoWithRetry(tabId, attempts){
     if (!tabId) return null;
     var maxAttempts = attempts && attempts > 0 ? attempts : 3;
@@ -84,15 +72,6 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
         return await chrome.tabs.sendMessage(tabId, { type: "COLLECT_DOM_INFO" });
       } catch (err) {
         lastError = err;
-        if (isNoReceiverError(err)) {
-          var injected = await ensureContentScript(tabId);
-          if (injected) {
-            try { await delay(100); }
-            catch (sleepErr) { /* ignore */ }
-            i--;
-            continue;
-          }
-        }
         if (i < maxAttempts - 1) {
           try { await delay(250 * (i + 1)); }
           catch (waitErr) { /* ignore */ }

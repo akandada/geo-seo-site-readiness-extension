@@ -8,7 +8,6 @@
     "default_title": "Site Readiness Auditor"
   },
   "permissions": [
-    "scripting",
     "storage",
     "activeTab",
     "tabs"
