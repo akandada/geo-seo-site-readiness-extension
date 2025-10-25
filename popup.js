@@ -63,12 +63,31 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
     return false;
   }
 
+  async function injectContentScript(tabId){
+    if (!tabId) return false;
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tabId },
+        files: ["content.js"]
+      });
+      return true;
+    } catch (err) {
+      console.warn("[SRA] Unable to inject content.js", err);
+      return false;
+    }
+  }
+
   async function requestDomInfoWithRetry(tabId, attempts){
     if (!tabId) return null;
     var maxAttempts = attempts && attempts > 0 ? attempts : 3;
     var lastError = null;
+    var injected = false;
     for (var i=0; i<maxAttempts; i++){
       try {
+        if (!injected || (lastError && isNoReceiverError(lastError))) {
+          var injectedNow = await injectContentScript(tabId);
+          injected = injected || injectedNow;
+        }
         return await chrome.tabs.sendMessage(tabId, { type: "COLLECT_DOM_INFO" });
       } catch (err) {
         lastError = err;
