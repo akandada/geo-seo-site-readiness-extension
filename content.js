@@ -572,40 +572,44 @@ function collectComponentReports(){
 }
 function collectWebVitalsOnce(){ return new Promise(resolve => { const out = { lcp: null, cls: 0, inp: null }; try { const poLcp = new PerformanceObserver((list)=>{ const entries=list.getEntries(); const last=entries[entries.length-1]; if (last) out.lcp = Math.round(last.startTime); }); poLcp.observe({ type: 'largest-contentful-paint', buffered: true }); const poCls = new PerformanceObserver((list)=>{ for (const e of list.getEntries()) { if (!e.hadRecentInput) out.cls += e.value; } }); poCls.observe({ type: 'layout-shift', buffered: true }); const poInp = new PerformanceObserver((list)=>{ for (const e of list.getEntries()) { const dur = e.duration; if (!out.inp || dur > out.inp) out.inp = Math.round(dur); } }); poInp.observe({ type: 'event', buffered: true, durationThreshold: 16 }); setTimeout(()=>resolve(out), 2500); } catch { resolve(out); } }); }
 async function simulateInfiniteScroll(){ const beforeCount = document.body.getElementsByTagName('*').length; const targetY = document.documentElement.scrollHeight - window.innerHeight - 5; window.scrollTo(0, Math.max(0, targetY)); const appended = await new Promise(res => { const start = Date.now(); const check = () => { const after = document.body.getElementsByTagName('*').length; if (after - beforeCount >= 20) { res(true); } else if (Date.now() - start > 2000) { res(false); } else { requestAnimationFrame(check); } }; requestAnimationFrame(check); }); return { appendedOnScroll: appended }; }
-chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  if (msg?.type === 'COLLECT_DOM_INFO') {
-    (async () => {
-      try {
-        const [perf, infinite] = await Promise.all([collectWebVitalsOnce(), simulateInfiniteScroll()]);
-        const info = {
-          url: location.href,
-          jsonLdCount: countJsonLd(),
-          ogCount: ogCount(),
-          twitterCount: twitterCount(),
-          metaRobots: metaRobots(),
-          titleLength: pageTitle().length,
-          metaDescriptionLength: metaDescription().length,
-          htmlLang: htmlLang(),
-          titleOk: titleOk(),
-          metaDescOk: metaDescOk(),
-          h1Count: h1Count(),
-          imgWithoutAlt: imgWithoutAlt(),
-          langOk: langOk(),
-          canonical: canonical(),
-          mainWordCount: mainWordCount(),
-          resourceHints: resourceHints(),
-          images: imageStats(),
-          mediaAssets: await collectMediaAssets(),
-          fonts: fontStats(),
-          pagination: discoverPagination(),
-          components: collectComponentReports(),
-          geo: analyzeGeoContent(),
-          perf,
-          infinite
-        };
-        sendResponse(info);
-      } catch (e) { sendResponse({}); }
-    })();
-    return true;
-  }
-});
+if (!window.__SRA_CONTENT_ACTIVE__) {
+  window.__SRA_CONTENT_ACTIVE__ = true;
+  chrome.runtime.onMessage.addListener(function(msg, _sender, sendResponse){
+    if (msg && msg.type === 'COLLECT_DOM_INFO') {
+      (async () => {
+        try {
+          const [perf, infinite] = await Promise.all([collectWebVitalsOnce(), simulateInfiniteScroll()]);
+          const info = {
+            url: location.href,
+            jsonLdCount: countJsonLd(),
+            ogCount: ogCount(),
+            twitterCount: twitterCount(),
+            metaRobots: metaRobots(),
+            titleLength: pageTitle().length,
+            metaDescriptionLength: metaDescription().length,
+            htmlLang: htmlLang(),
+            titleOk: titleOk(),
+            metaDescOk: metaDescOk(),
+            h1Count: h1Count(),
+            imgWithoutAlt: imgWithoutAlt(),
+            langOk: langOk(),
+            canonical: canonical(),
+            mainWordCount: mainWordCount(),
+            resourceHints: resourceHints(),
+            images: imageStats(),
+            mediaAssets: await collectMediaAssets(),
+            fonts: fontStats(),
+            pagination: discoverPagination(),
+            components: collectComponentReports(),
+            geo: analyzeGeoContent(),
+            perf,
+            infinite
+          };
+          sendResponse(info);
+        } catch (e) { sendResponse({}); }
+      })();
+      return true;
+    }
+    return undefined;
+  });
+}

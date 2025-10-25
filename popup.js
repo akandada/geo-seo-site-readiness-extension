@@ -63,14 +63,16 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
     return false;
   }
 
-  async function ensureContentScript(tabId){
+  async function injectContentScript(tabId){
     if (!tabId) return false;
-    if (!chrome || !chrome.scripting || !chrome.scripting.executeScript) return false;
     try {
-      await chrome.scripting.executeScript({ target: { tabId: tabId }, files: ["content.js"] });
+      await chrome.scripting.executeScript({
+        target: { tabId: tabId },
+        files: ["content.js"]
+      });
       return true;
-    } catch (injErr) {
-      console.warn("[SRA] Content script injection failed:", injErr);
+    } catch (err) {
+      console.warn("[SRA] Unable to inject content.js", err);
       return false;
     }
   }
@@ -79,20 +81,16 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
     if (!tabId) return null;
     var maxAttempts = attempts && attempts > 0 ? attempts : 3;
     var lastError = null;
+    var injected = false;
     for (var i=0; i<maxAttempts; i++){
       try {
+        if (!injected || (lastError && isNoReceiverError(lastError))) {
+          var injectedNow = await injectContentScript(tabId);
+          injected = injected || injectedNow;
+        }
         return await chrome.tabs.sendMessage(tabId, { type: "COLLECT_DOM_INFO" });
       } catch (err) {
         lastError = err;
-        if (isNoReceiverError(err)) {
-          var injected = await ensureContentScript(tabId);
-          if (injected) {
-            try { await delay(100); }
-            catch (sleepErr) { /* ignore */ }
-            i--;
-            continue;
-          }
-        }
         if (i < maxAttempts - 1) {
           try { await delay(250 * (i + 1)); }
           catch (waitErr) { /* ignore */ }
