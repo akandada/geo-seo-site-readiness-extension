@@ -93,10 +93,13 @@ When auditing multiple URLs, scores and category items are averaged and merged. 
 
 ## Installation (Developer Mode)
 
-1. Clone or download this repository.
-2. Open `chrome://extensions` in Chrome.
-3. Enable **Developer mode** (top-right toggle).
-4. Click **Load unpacked** and choose the repository folder.
+Follow these steps to load the extension locally for exploratory or regression testing:
+
+1. **Retrieve the code** – Clone the repository or download the ZIP archive and extract it to a convenient folder on your machine (e.g., `~/geo-seo-site-readiness-extension`).
+2. **Open Chrome's extension dashboard** – In a Chromium-based browser, navigate to `chrome://extensions/` and ensure a fresh window is open for the site you plan to audit.
+3. **Enable developer tools** – Toggle **Developer mode** in the top-right corner of the extensions dashboard so Chrome will accept unpacked sources.
+4. **Load the unpacked project** – Click **Load unpacked**, browse to the folder from step 1, and select it. The extension should now appear in the list; pin it to the toolbar if you want quick access during testing.
+5. **Refresh after code edits** – While iterating on changes, use the **↻ Reload** button on the extension card to pull in your latest modifications before re-running tests.
 
 ## Running an Audit
 
