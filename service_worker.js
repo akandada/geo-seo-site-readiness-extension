@@ -75,19 +75,45 @@ async function fetchContentLengthOnly(url){
 function isLikelyPlainText(resp){
   if (!resp || !resp.ok) return false;
   var ct = String((resp.headers || {})['content-type'] || '').toLowerCase();
+  var body = String(resp.text || '');
+
+  if (!body) return false;
 
   // Must be text/plain OR some text/* that is clearly not HTML
   if (ct.startsWith('text/plain')) return true;
-  if (!ct.startsWith('text/')) return false;
 
-  var body = String(resp.text || '');
-  if (/(<!doctype\s*html|<html[\s>]|<head[\s>]|<body[\s>])/i.test(body)) return false;
+  if (ct.startsWith('text/')) {
+    if (/(<!doctype\s*html|<html[\s>]|<head[\s>]|<body[\s>])/i.test(body)) return false;
 
-  // also reject if there are many angle brackets (likely markup)
-  var angleCount = (body.match(/</g) || []).length;
-  if (angleCount > 5) return false;
+    // also reject if there are many angle brackets (likely markup)
+    var angleCount = (body.match(/</g) || []).length;
+    if (angleCount > 20) return false;
 
-  return true;
+    return true;
+  }
+
+  // Some servers incorrectly label llms/ai text as octet-stream or omit the header.
+  if (!ct || ct === 'application/octet-stream' || ct === 'binary/octet-stream') {
+    if (/(<!doctype\s*html|<html[\s>]|<head[\s>]|<body[\s>])/i.test(body)) return false;
+
+    var sample = body.slice(0, 400);
+    var printable = 0;
+    for (var i = 0; i < sample.length; i++) {
+      var code = sample.charCodeAt(i);
+      if (
+        code === 9 || code === 10 || code === 13 || // whitespace
+        (code >= 32 && code <= 126) || // basic latin
+        (code >= 160 && code <= 591)
+      ) {
+        printable++;
+      }
+    }
+    if (printable >= sample.length * 0.9) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 // Ensure final URL path is exactly /ai.txt or /llms.txt (no redirect to / or other page)
