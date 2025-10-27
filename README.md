@@ -43,6 +43,15 @@ The extension inspects AI policy endpoints and `robots.txt` allowances for leadi
 * **Major AI bots not blocked** – Each bot contributes points when not disallowed in `robots.txt`: GPTBot (8), CommonCrawl (6), ClaudeBot (4), PerplexityBot (2), and Google-Extended (2). Blocking any bot flips the status to “bad” and surfaces remediation language. 【F:popup.js†L505-L542】
 * **AI reuse directives (0 pts, penalty logic)** – `noai` directives in headers or meta tags do not award points and subtract up to 6 pts from the GEO subtotal, reflecting the trade-off of prohibiting AI ingestion. 【F:popup.js†L544-L567】【F:popup.js†L612-L616】
 
+#### How GEO readiness is measured
+
+1. **Policy fetch sequence** – The background service worker issues direct requests for `robots.txt`, `ai.txt`, and `llms.txt`, follows redirects, and rejects HTML responses so only plain-text policies are considered valid before returning the results to the popup. 【F:service_worker.js†L26-L117】【F:service_worker.js†L393-L417】【F:popup.js†L431-L487】
+2. **Crawler permission matrix** – `parseRobots` distills the fetched `robots.txt` into allow/deny flags for GPTBot, CommonCrawl, ClaudeBot, PerplexityBot, and Google-Extended. The popup uses those booleans to grade GEO exposure and award points for every crawler that is not disallowed. 【F:service_worker.js†L146-L201】【F:popup.js†L505-L542】
+3. **Policy presence scoring** – The popup assigns eight points for a valid `ai.txt` response and five points for a valid `llms.txt`, while attaching remediation text if either endpoint is missing or misconfigured. Status codes, final URLs, and `Content-Type` headers are surfaced so teams can diagnose server-side issues. 【F:service_worker.js†L393-L417】【F:popup.js†L431-L503】
+4. **In-page directive penalties** – The content script captures meta robots directives and the popup inspects both header- and meta-level `noai` rules. Any prohibition subtracts up to six points and records the directive’s source in the GEO findings list. 【F:content.js†L1-L45】【F:popup.js†L544-L571】
+5. **Content depth analysis** – Beyond permissions, the DOM snapshot quantifies GEO-focused copy signals such as word counts, top terms, readability, structure, citations, and evidence. The full report renders those measurements alongside the GEO findings so reviewers can judge topical readiness. 【F:content.js†L28-L128】【F:report/geo.js†L1-L109】
+6. **Severity mapping** – GEO findings are converted into recommendations ranked by severity, ensuring blocks on major crawlers surface ahead of optional improvements like publishing policy files. 【F:popup.js†L724-L792】
+
 ### SEO (25 pts)
 
 SEO checks target baseline discoverability signals:
