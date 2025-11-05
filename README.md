@@ -1,17 +1,18 @@
 # Site Readiness Auditor Chrome Extension
 
-Site Readiness Auditor is a Chrome extension that evaluates a page's performance, crawlability, GEO/LLM readiness, accessibility, and infinite scroll patterns. It combines DOM heuristics with network-level fetches to produce an overall readiness score and actionable recommendations.
+Site Readiness Auditor is a Chrome extension that evaluates a page's performance, crawlability, GEO/LLM readiness, answer-engine signals, accessibility, and infinite scroll patterns. It combines DOM heuristics with network-level fetches to produce an overall readiness score and actionable recommendations.
 
 ![Alt text](/screen_shot.png?raw=true "Optional Title")
 
 ## Features
 
-- **Performance heuristics** – Observes Largest Contentful Paint (LCP), Cumulative Layout Shift (CLS), and Interaction to Next Paint (INP), scores them with Lighthouse Core Web Vitals curves, and inspects resource hints, compression, caching, and image/font usage. 【F:content.js†L213-L348】【F:popup.js†L609-L713】【F:lighthouse_metrics.js†L1-L118】
-- **SEO and structured data checks** – Validates sitemap discoverability, canonical tags, title/meta description length, and JSON-LD presence. 【F:popup.js†L454-L515】
-- **GEO / LLM readiness** – Fetches `robots.txt`, `ai.txt`, `llms.txt`, and evaluates whether major AI crawlers are allowed, while reporting AI policy directives that block ingestion. 【F:service_worker.js†L220-L423】【F:popup.js†L421-L487】
-- **GEO content deep dive** – Captures word counts, readability, structure, outbound references, quotes, and stats for the detailed report view. 【F:content.js†L19-L203】【F:report.js†L962-L1033】
-- **Accessibility highlights** – Ensures a single `<h1>`, checks for missing `alt` text, verifies `<html lang>` usage, and evaluates content depth. 【F:content.js†L10-L42】【F:popup.js†L515-L542】
-- **Infinite scroll readiness** – Detects infinite scroll behavior, ensures crawlable pagination URLs exist, and verifies that fetching a “page 2” URL returns content. 【F:content.js†L349-L466】【F:service_worker.js†L286-L423】【F:popup.js†L713-L756】
+- **Performance heuristics** – Observes Largest Contentful Paint (LCP), Cumulative Layout Shift (CLS), and Interaction to Next Paint (INP), scores them with Lighthouse Core Web Vitals curves, and inspects resource hints, compression, caching, and image/font usage. 【F:content.js†L213-L409】【F:content.js†L775-L806】【F:popup.js†L642-L733】【F:lighthouse_metrics.js†L1-L118】
+- **SEO and structured data checks** – Validates sitemap discoverability, canonical tags, title/meta description length, and JSON-LD presence. 【F:popup.js†L513-L588】
+- **Answer engine optimization** – Flags FAQ/Q&A/HowTo schema, speakable markup, question-style modules, summaries, and authoritative citations that support generative answer surfaces. 【F:content.js†L150-L331】【F:popup.js†L589-L626】
+- **GEO / LLM readiness** – Fetches `robots.txt`, `ai.txt`, `llms.txt`, and evaluates whether major AI crawlers are allowed, while reporting AI policy directives that block ingestion. 【F:service_worker.js†L220-L423】【F:popup.js†L507-L552】
+- **GEO content deep dive** – Captures word counts, readability, structure, outbound references, quotes, and stats for the detailed report view. 【F:content.js†L19-L146】【F:report.js†L962-L1033】
+- **Accessibility highlights** – Ensures a single `<h1>`, checks for missing `alt` text, verifies `<html lang>` usage, and evaluates content depth. 【F:content.js†L1-L44】【F:popup.js†L629-L640】
+- **Infinite scroll readiness** – Detects infinite scroll behavior, ensures crawlable pagination URLs exist, and verifies that fetching a “page 2” URL returns content. 【F:content.js†L576-L652】【F:service_worker.js†L286-L423】【F:popup.js†L736-L761】
 - **Shareable reports** – Saves the latest audit to `chrome.storage.local`, renders a detailed report page, and preserves raw data for debugging. 【F:popup.js†L62-L86】【F:report.js†L1-L120】
 
 ## How it Works
@@ -19,17 +20,18 @@ Site Readiness Auditor is a Chrome extension that evaluates a page's performance
 1. **Popup trigger** – Clicking **Run audit** in `popup.html` wakes the background service worker and queries the active tab. 【F:popup.js†L25-L86】
 2. **DOM collection** – The content script (`content.js`) listens for `COLLECT_DOM_INFO`, gathers metadata and in-page signals, and simulates a scroll to detect dynamically injected content. 【F:content.js†L1-L70】
 3. **Network collection** – The service worker (`service_worker.js`) fetches site-level resources (robots, sitemap, AI policies) and infers pagination patterns from discovered sitemap URLs. 【F:service_worker.js†L33-L364】
-4. **Scoring** – The popup combines DOM and network snapshots into five weighted category scores (GEO 35, SEO 25, A11y 10, Performance 20, Infinite 10), derives an overall grade, and lists key checks plus prioritized recommendations. 【F:popup.js†L421-L756】【F:popup.js†L807-L916】
+4. **Scoring** – The popup combines DOM and network snapshots into six weighted category scores (GEO 35, SEO 25, Answer Engine 20, A11y 10, Performance 20, Infinite 10), derives an overall grade, and lists key checks plus prioritized recommendations. 【F:popup.js†L470-L826】【F:popup.js†L910-L1010】
 5. **Reporting** – Results are persisted under a random key. The **Open full report** button launches `report.html`, which formats category cards, pagination diagnostics, and raw JSON. 【F:popup.js†L62-L86】【F:report.js†L53-L120】
 
 ## Scoring System Deep Dive
 
-The overall readiness score is the weighted sum of five categories. Each category grants points when a check passes; failing checks log guidance and may trigger recommendations. Scores are capped at their category maximums before computing the overall grade (`A ≥ 90`, `B ≥ 80`, `C ≥ 70`, `D ≥ 60`, otherwise `F`). 【F:popup.js†L24-L37】【F:popup.js†L695-L735】
+The overall readiness score is the weighted sum of six categories. Each category grants points when a check passes; failing checks log guidance and may trigger recommendations. Scores are capped at their category maximums before computing the overall grade (`A ≥ 90`, `B ≥ 80`, `C ≥ 70`, `D ≥ 60`, otherwise `F`). 【F:popup.js†L24-L37】【F:popup.js†L470-L774】
 
 | Category | Max Points | Focus |
 | --- | --- | --- |
 | GEO / LLM | 35 | Crawl permissions for AI agents and AI policy declarations |
 | SEO | 25 | Discoverability, canonicalization, and snippet hygiene |
+| Answer Engine | 20 | FAQ/HowTo schema, speakable markup, summaries, and citations |
 | Accessibility | 10 | Semantic headings, alt text, language, and content depth |
 | Performance | 20 | Core Web Vitals + delivery optimizations |
 | Infinite Scroll | 10 | Crawl-friendly pagination for infinite feeds |
@@ -62,6 +64,17 @@ SEO checks target baseline discoverability signals:
 * **Canonical URL defined (3 pts)** – Looks for `<link rel="canonical">` to avoid duplicate-index issues. 【F:popup.js†L573-L576】
 * **Title length 10–70 chars (3 pts)** – Ensures the title is concise yet descriptive. 【F:popup.js†L578-L582】
 * **Meta description 50–160 chars (2 pts)** – Validates snippet-length guidance for SERP previews. 【F:popup.js†L584-L588】
+
+### Answer Engine (20 pts)
+
+Answer-engine scoring highlights signals that improve eligibility for generative answers and voice assistants:
+
+* **FAQ/Q&A structured data (6 pts)** – Detects FAQPage/QAPage JSON-LD or FAQ microdata and urges teams to ship schema when missing. 【F:content.js†L150-L331】【F:popup.js†L589-L599】
+* **HowTo schema (4 pts)** – Rewards HowTo JSON-LD on instructional content and flags gaps when absent. 【F:content.js†L150-L331】【F:popup.js†L600-L603】
+* **Speakable markup (2 pts)** – Checks for `speakable` properties or `SpeakableSpecification` objects so assistants can quote snippets aloud. 【F:content.js†L150-L331】【F:popup.js†L604-L606】
+* **Question modules (3 pts)** – Looks for FAQ accordions and question-style headings that line up with conversational queries. 【F:content.js†L260-L331】【F:popup.js†L608-L612】
+* **Summaries & tables of contents (3 pts)** – Detects key-takeaway lists, callout summaries, or TOC anchor clusters near the top of the article. 【F:content.js†L233-L331】【F:popup.js†L614-L621】
+* **Authoritative citations (2 pts)** – Uses the GEO content analysis to confirm outbound links to trustworthy domains. 【F:content.js†L66-L128】【F:popup.js†L623-L626】
 
 ### Accessibility (10 pts)
 
