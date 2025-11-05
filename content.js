@@ -146,6 +146,208 @@ function analyzeGeoContent(){
     };
   }
 }
+
+function extractJsonLdAnswerSignals(){
+  var result = {
+    count: 0,
+    errors: 0,
+    faqSchema: false,
+    qaSchema: false,
+    howToSchema: false,
+    speakableSchema: false,
+    breadcrumbSchema: false
+  };
+  function markType(type){
+    if (!type) return;
+    var t = String(type).toLowerCase();
+    if (t.indexOf("faqpage") >= 0) result.faqSchema = true;
+    if (t === "question" || t === "faquestion" || t.indexOf("question") >= 0) result.faqSchema = true;
+    if (t.indexOf("qapage") >= 0) result.qaSchema = true;
+    if (t.indexOf("howto") >= 0) result.howToSchema = true;
+    if (t.indexOf("speakable") >= 0) result.speakableSchema = true;
+    if (t.indexOf("breadcrumb") >= 0) result.breadcrumbSchema = true;
+  }
+  function walk(node){
+    if (!node) return;
+    if (Array.isArray(node)) {
+      for (var i = 0; i < node.length; i++) {
+        walk(node[i]);
+      }
+      return;
+    }
+    if (typeof node === "object") {
+      var typeVal = node["@type"];
+      if (Array.isArray(typeVal)) {
+        for (var j = 0; j < typeVal.length; j++) {
+          markType(typeVal[j]);
+        }
+      } else if (typeVal) {
+        markType(typeVal);
+      }
+      if (!result.speakableSchema && node.speakable != null) {
+        result.speakableSchema = true;
+      }
+      for (var key in node) {
+        if (!Object.prototype.hasOwnProperty.call(node, key)) continue;
+        var value = node[key];
+        if (value && typeof value === "object") {
+          walk(value);
+        }
+      }
+    }
+  }
+
+  try {
+    var scripts = qa('script[type="application/ld+json"]');
+    result.count = scripts.length;
+    for (var i = 0; i < scripts.length; i++) {
+      var script = scripts[i];
+      if (!script) continue;
+      var text = script.textContent || script.innerText || "";
+      if (!text) continue;
+      try {
+        var json = JSON.parse(text);
+        walk(json);
+      } catch (err) {
+        result.errors += 1;
+        var trimmed = text.trim();
+        if (trimmed.charAt(0) === "{" && trimmed.charAt(trimmed.length - 1) === "}") {
+          try {
+            var wrapped = "[" + trimmed.replace(/}\s*{/, "},{") + "]";
+            var fallback = JSON.parse(wrapped);
+            walk(fallback);
+          } catch (ignore) {}
+        }
+      }
+    }
+  } catch (e) {
+    result.errors += 1;
+  }
+  return result;
+}
+
+function detectAnswerEngineSignals(){
+  try {
+    var main = document.querySelector('main, article, [role="main"]');
+    if (!main) main = document.body || document.documentElement;
+    var listNodes = Array.from(main.querySelectorAll('ul, ol')).slice(0, 30);
+    var keyPhrase = /(key\s*takeaway|key\s*points|summary|highlights|quick facts|at a glance|overview|in brief)/i;
+    var summaryListCount = 0;
+    var summaryNearTop = false;
+    for (var liIdx = 0; liIdx < listNodes.length; liIdx++) {
+      var list = listNodes[liIdx];
+      if (!list) continue;
+      var items = list.querySelectorAll('li');
+      if (items.length < 3) continue;
+      summaryListCount++;
+      var labelText = "";
+      var prev = list.previousElementSibling;
+      if (prev) {
+        labelText += (prev.textContent || "");
+      }
+      labelText += " " + (list.getAttribute('aria-label') || "");
+      labelText += " " + (list.getAttribute('data-title') || "");
+      var combined = (labelText + " " + (list.textContent || "")).replace(/\s+/g, ' ').trim();
+      if (keyPhrase.test(combined)) summaryNearTop = true;
+      if (typeof list.getBoundingClientRect === 'function') {
+        var rect = list.getBoundingClientRect();
+        if (rect && rect.top >= 0 && rect.top < 800) {
+          summaryNearTop = true;
+        }
+      }
+    }
+
+    var headings = Array.from(main.querySelectorAll('h2, h3, h4, h5')).slice(0, 60);
+    var questionHeadingCount = 0;
+    var questionRegex = /^(who|what|when|where|why|how|can|does|is|are|should|will|do|did|could|would|may|might|which)\b/i;
+    for (var hIdx = 0; hIdx < headings.length; hIdx++) {
+      var heading = headings[hIdx];
+      if (!heading) continue;
+      var text = (heading.textContent || "").replace(/\s+/g, ' ').trim();
+      if (!text) continue;
+      if (text.charAt(text.length - 1) === '?' || questionRegex.test(text)) {
+        questionHeadingCount++;
+      }
+    }
+
+    var detailsNodes = Array.from(main.querySelectorAll('details')).slice(0, 40);
+    var faqAccordionCount = 0;
+    for (var dIdx = 0; dIdx < detailsNodes.length; dIdx++) {
+      var det = detailsNodes[dIdx];
+      if (!det) continue;
+      var summary = det.querySelector('summary');
+      var text = summary ? (summary.textContent || "") : "";
+      var combinedText = (text + " " + (det.getAttribute('class') || "")).toLowerCase();
+      if (questionRegex.test(text) || /faq|q&a|question|answer/.test(combinedText)) {
+        faqAccordionCount++;
+      }
+    }
+
+    var microdataFaq = main.querySelectorAll('[itemtype*="FAQPage"], [itemtype*="Question"], [itemtype*="HowTo"]');
+
+    var anchorLinks = Array.from(main.querySelectorAll('a[href^="#"]')).filter(function(a){
+      if (!a) return false;
+      var href = a.getAttribute('href') || '';
+      if (!href || href === '#' || href.toLowerCase() === '#top') return false;
+      return true;
+    });
+    var tocDetected = false;
+    if (anchorLinks.length >= 3) {
+      for (var aIdx = 0; aIdx < anchorLinks.length; aIdx++) {
+        var anchor = anchorLinks[aIdx];
+        if (!anchor || typeof anchor.getBoundingClientRect !== 'function') continue;
+        var rect = anchor.getBoundingClientRect();
+        if (rect && rect.top >= 0 && rect.top < 700) {
+          tocDetected = true;
+          break;
+        }
+      }
+    }
+
+    var calloutSelectors = 'aside, .callout, .summary-box, .key-points, .highlights, .important';
+    var callouts = Array.from(main.querySelectorAll(calloutSelectors)).filter(function(node){
+      var text = (node.textContent || "").replace(/\s+/g, ' ').trim();
+      if (!text) return false;
+      return keyPhrase.test(text) || /answer|summary|takeaway|in summary|tl;dr/i.test(text);
+    });
+
+    var structured = extractJsonLdAnswerSignals();
+
+    return {
+      faqSchema: structured.faqSchema,
+      qaSchema: structured.qaSchema,
+      howToSchema: structured.howToSchema,
+      speakableSchema: structured.speakableSchema,
+      breadcrumbSchema: structured.breadcrumbSchema,
+      jsonLdCount: structured.count,
+      jsonLdErrors: structured.errors,
+      faqMicrodataCount: microdataFaq.length,
+      faqAccordionCount: faqAccordionCount,
+      questionHeadingCount: questionHeadingCount,
+      keyTakeawayLists: summaryListCount,
+      hasSummaryList: summaryNearTop || callouts.length > 0,
+      calloutCount: callouts.length,
+      hasTableOfContents: tocDetected
+    };
+  } catch (e) {
+    return {
+      faqSchema: false,
+      qaSchema: false,
+      howToSchema: false,
+      speakableSchema: false,
+      breadcrumbSchema: false,
+      jsonLdCount: 0,
+      jsonLdErrors: 1,
+      faqMicrodataCount: 0,
+      faqAccordionCount: 0,
+      questionHeadingCount: 0,
+      keyTakeawayLists: 0,
+      hasSummaryList: false,
+      calloutCount: 0,
+      hasTableOfContents: false
+    };
+  }
+}
 function resourceHints(){ return { preconnect: qa('link[rel=\"preconnect\"]').length, preload: qa('link[rel=\"preload\"]').length, dnsPrefetch: qa('link[rel=\"dns-prefetch\"]').length }; }
 function imageStats(){ const imgs = qa('img'); const total = imgs.length || 1; const modern = imgs.filter(i => (i.src||'').match(/\.(avif|webp)(\?|$)/i)).length; const lazy = imgs.filter(i => (i.getAttribute('loading')||'').toLowerCase()==='lazy').length; return { count: imgs.length, modernPct: (modern/total)*100, lazyPct: (lazy/total)*100 }; }
 function fontStats(){ const styles = qa('style, link[rel=\"stylesheet\"]'); let haveDisplay=false; styles.forEach(s=>{ const txt = s.tagName==='STYLE' ? s.textContent : ''; if (txt && /font-display\\s*:\\s*(swap|optional)/i.test(txt)) haveDisplay = true; }); return { haveDisplay }; }
@@ -602,6 +804,7 @@ if (!window.__SRA_CONTENT_ACTIVE__) {
             pagination: discoverPagination(),
             components: collectComponentReports(),
             geo: analyzeGeoContent(),
+            answer: detectAnswerEngineSignals(),
             perf,
             infinite
           };

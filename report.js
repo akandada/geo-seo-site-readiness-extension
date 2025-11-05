@@ -36,6 +36,7 @@ function updateCharts(data, overallScore) {
   var catMap = [
     ["GEO / LLM Readiness", data.categories && data.categories.geo],
     ["Crawlability & SEO", data.categories && data.categories.seo],
+    ["Answer Engine Optimization", data.categories && data.categories.answer],
     ["Accessibility & Semantics", data.categories && data.categories.a11y],
     ["Performance", data.categories && data.categories.performance],
     ["Infinite Scroll Pattern", data.categories && data.categories.infinite]

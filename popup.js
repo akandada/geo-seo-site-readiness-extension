@@ -32,7 +32,7 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
     return cur===undefined?fallback:cur;
   }
 
-  var CATEGORY_ORDER = ["geo","seo","a11y","performance","infinite"];
+  var CATEGORY_ORDER = ["geo","seo","answer","a11y","performance","infinite"];
   var lastReportKey = null;
 
   function resetProgress(){ if(progressEl) progressEl.innerHTML=""; }
@@ -471,6 +471,7 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
     var CATS = {
       geo:         { max: 35, score: 0, items: [] },
       seo:         { max: 25, score: 0, items: [] },
+      answer:      { max: 20, score: 0, items: [] },
       a11y:        { max: 10, score: 0, items: [] },
       performance: { max: 20, score: 0, items: [] },
       infinite:    { max: 10, score: 0, items: [] }
@@ -584,6 +585,45 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
     var metaDescOkVal = !!get(dom,["metaDescOk"],false);
     var metaDescLength = Number(get(dom,["metaDescriptionLength"],0)||0);
     addCat("seo", 2, metaDescOkVal, "Meta description OK (50–160)", "Write a meta description between 50–160 characters.", metaDescLength ? "Meta description length: " + metaDescLength + " characters." : "Meta description missing or empty.", metaDescOkVal ? "low" : "medium");
+
+    // Answer engine optimization
+    var answerSignals = get(dom, ["answer"], {}) || {};
+    var faqSchemaOk = !!(get(answerSignals, ["faqSchema"], false) || get(answerSignals, ["qaSchema"], false) || (Number(get(answerSignals, ["faqMicrodataCount"], 0)) || 0) > 0);
+    var faqDetailParts = [];
+    if (get(answerSignals, ["faqSchema"], false)) faqDetailParts.push("FAQPage JSON-LD");
+    if (get(answerSignals, ["qaSchema"], false)) faqDetailParts.push("QAPage JSON-LD");
+    var faqMicroCount = Number(get(answerSignals, ["faqMicrodataCount"], 0)) || 0;
+    if (faqMicroCount > 0) faqDetailParts.push(faqMicroCount + " FAQ microdata node(s)");
+    var faqDetail = faqSchemaOk ? "Detected " + faqDetailParts.join(", ") + "." : "No FAQ/Q&A structured data detected in JSON-LD or microdata.";
+    addCat("answer", 6, faqSchemaOk, faqSchemaOk ? "FAQ/Q&A structured data present" : "FAQ/Q&A structured data missing", "Add schema.org FAQPage or QAPage markup to feed answer engines.", faqDetail, faqSchemaOk ? "low" : "high");
+
+    var howToOk = !!get(answerSignals, ["howToSchema"], false);
+    var howToDetail = howToOk ? "HowTo schema detected in JSON-LD." : "No HowTo structured data detected.";
+    addCat("answer", 4, howToOk, howToOk ? "HowTo schema present" : "HowTo schema missing", "Publish HowTo structured data for step-by-step content.", howToDetail, howToOk ? "low" : "medium");
+
+    var speakableOk = !!get(answerSignals, ["speakableSchema"], false);
+    var speakableDetail = speakableOk ? "SpeakableSpecification or speakable property detected." : "No speakable markup found.";
+    addCat("answer", 2, speakableOk, speakableOk ? "Speakable markup present" : "Speakable markup missing", "Add speakable markup so assistants can quote summaries.", speakableDetail, speakableOk ? "low" : "medium");
+
+    var faqAccordionCount = Number(get(answerSignals, ["faqAccordionCount"], 0)) || 0;
+    var questionHeadingCount = Number(get(answerSignals, ["questionHeadingCount"], 0)) || 0;
+    var faqModulesOk = (faqAccordionCount + questionHeadingCount) > 0;
+    var faqModuleDetail = faqModulesOk ? faqAccordionCount + " accordion(s) and " + questionHeadingCount + " question heading(s) detected." : "No obvious FAQ accordion or question-style headings detected.";
+    addCat("answer", 3, faqModulesOk, faqModulesOk ? "FAQ/Q&A modules detected" : "FAQ/Q&A modules missing", "Expose question-and-answer sections that map to user queries.", faqModuleDetail, faqModulesOk ? "low" : "medium");
+
+    var summaryListCount = Number(get(answerSignals, ["keyTakeawayLists"], 0)) || 0;
+    var hasSummaryList = !!get(answerSignals, ["hasSummaryList"], false);
+    var tocDetected = !!get(answerSignals, ["hasTableOfContents"], false);
+    var summaryDetailParts = [];
+    summaryDetailParts.push(summaryListCount + " takeaway list(s)");
+    summaryDetailParts.push(tocDetected ? "table of contents links detected" : "no table of contents links");
+    var summaryDetail = "Summary signals: " + summaryDetailParts.join(", ") + ".";
+    addCat("answer", 3, hasSummaryList || tocDetected, (hasSummaryList || tocDetected) ? "Summaries or TOC detected" : "No summaries/TOC detected", "Add a key takeaways list or table of contents near the top of the page.", summaryDetail, (hasSummaryList || tocDetected) ? "low" : "medium");
+
+    var authorityCount = Number(get(dom, ["geo", "citationAuthorityCount"], 0)) || 0;
+    var authorityOk = authorityCount > 0;
+    var authorityDetail = authorityOk ? "Detected " + authorityCount + " authoritative outbound citation(s)." : "No .gov/.edu or research-style citations detected.";
+    addCat("answer", 2, authorityOk, authorityOk ? "Authoritative citations present" : "Authoritative citations missing", "Link to authoritative sources to boost answer credibility.", authorityDetail, authorityOk ? "low" : "medium");
 
     // A11y
     var h1Total = get(dom,["h1Count"],0)||0;
@@ -773,6 +813,7 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
       categories: {
         geo:         { score: pct(CATS.geo.score,CATS.geo.max), items: CATS.geo.items },
         seo:         { score: pct(CATS.seo.score,CATS.seo.max), items: CATS.seo.items },
+        answer:      { score: pct(CATS.answer.score,CATS.answer.max), items: CATS.answer.items },
         a11y:        { score: pct(CATS.a11y.score,CATS.a11y.max), items: CATS.a11y.items },
         performance: { score: pct(CATS.performance.score,CATS.performance.max), items: CATS.performance.items },
         infinite:    { score: pct(CATS.infinite.score,CATS.infinite.max), items: CATS.infinite.items }
@@ -913,7 +954,9 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
       var cat = result.categories[name];
       if (!cat) continue;
       var li = document.createElement("li");
-      var title = name === "geo" ? "GEO / LLM" : (name === "a11y" ? "Accessibility" : name.charAt(0).toUpperCase() + name.slice(1));
+      var title = name === "geo" ? "GEO / LLM" :
+        (name === "answer" ? "Answer Engine" :
+        (name === "a11y" ? "Accessibility" : name.charAt(0).toUpperCase() + name.slice(1)));
       li.textContent = title + ": " + cat.score + "/100";
       catsEl.appendChild(li);
     }
