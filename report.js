@@ -3,6 +3,7 @@ import { $, cardEl, fillChips, parseQuery } from "./report/dom.js";
 import { renderGeoDeepDive } from "./report/geo.js";
 import { renderLighthouseCard } from "./report/lighthouse.js";
 import { renderComponentInventory, renderMediaInventory } from "./report/inventory.js";
+import { renderGtmInventory } from "./report/gtm.js";
 import { renderMultiPageList } from "./report/multiPage.js";
 import { renderRecommendations } from "./report/recommendations.js";
 
@@ -209,6 +210,7 @@ function renderHeader(data) {
     renderLighthouseCard(data.lighthouse);
     renderGeoDeepDive(data.dom && data.dom.geo ? data.dom.geo : null, data.categories && data.categories.geo ? data.categories.geo : null);
     renderComponentInventory(data.dom && data.dom.components ? data.dom.components : null);
+    renderGtmInventory(data.dom && data.dom.gtm ? data.dom.gtm : null);
     renderMediaInventory(data.dom && data.dom.mediaAssets ? data.dom.mediaAssets : null);
 
     renderPagination(data.net && data.net.paginationDerived ? data.net.paginationDerived : null);
