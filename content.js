@@ -772,6 +772,196 @@ function collectComponentReports(){
     return [];
   }
 }
+
+function normalizeGtmValue(value, depth){
+  if (depth > 3) return "";
+  if (value == null) return "";
+  if (typeof value === "string") {
+    var trimmed = value.trim();
+    if (!trimmed) return "";
+    return trimmed.replace(/\s+/g," ").slice(0,160);
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    var parts = [];
+    for (var i = 0; i < value.length; i++) {
+      var part = normalizeGtmValue(value[i], depth + 1);
+      if (part) parts.push(part);
+      if (parts.length >= 3) break;
+    }
+    return parts.join(", ");
+  }
+  if (typeof value === "object") {
+    try {
+      if (typeof value.textContent === "string") {
+        var text = value.textContent.trim();
+        if (text) return text.replace(/\s+/g," ").slice(0,160);
+      }
+      if (typeof value.innerText === "string") {
+        var text2 = value.innerText.trim();
+        if (text2) return text2.replace(/\s+/g," ").slice(0,160);
+      }
+    } catch (e) {}
+  }
+  return "";
+}
+
+function pickFirstGtmValue(obj, keys){
+  if (!obj) return "";
+  for (var i = 0; i < keys.length; i++) {
+    var key = keys[i];
+    if (!Object.prototype.hasOwnProperty.call(obj, key)) continue;
+    var val = obj[key];
+    var str = normalizeGtmValue(val, 0);
+    if (str) return str;
+  }
+  return "";
+}
+
+function detectGtmContainers(){
+  try {
+    var ids = [];
+    var seen = {};
+    function add(id){
+      if (!id) return;
+      var txt = String(id).trim();
+      if (!txt) return;
+      if (seen[txt]) return;
+      seen[txt] = true;
+      ids.push(txt);
+    }
+    var scripts = document.querySelectorAll('script[src*="googletagmanager.com/gtm"]');
+    for (var i = 0; i < scripts.length; i++) {
+      var script = scripts[i];
+      if (!script || !script.getAttribute) continue;
+      var src = script.getAttribute('src') || '';
+      if (src) {
+        try {
+          var url = new URL(src, location.href);
+          var paramId = url.searchParams.get('id');
+          if (paramId) add(paramId);
+          var search = url.search || '';
+          if (search) {
+            var pairs = search.replace(/^\?/, '').split('&');
+            for (var pi = 0; pi < pairs.length; pi++) {
+              var pair = pairs[pi];
+              if (!pair) continue;
+              var eq = pair.indexOf('=');
+              if (eq < 0) continue;
+              var key = pair.slice(0, eq).toLowerCase();
+              if (key !== 'id') continue;
+              var value = pair.slice(eq + 1);
+              if (value) add(decodeURIComponent(value));
+            }
+          }
+        } catch (e) {
+          var match = src.match(/[?&]id=([^&]+)/i);
+          if (match && match[1]) add(decodeURIComponent(match[1]));
+        }
+      }
+      var dataId = script.getAttribute('data-gtm-id');
+      if (dataId) add(dataId);
+    }
+    var iframes = document.querySelectorAll('iframe[src*="googletagmanager.com/ns.html"]');
+    for (var j = 0; j < iframes.length; j++) {
+      var frame = iframes[j];
+      if (!frame || !frame.getAttribute) continue;
+      var iframeSrc = frame.getAttribute('src') || '';
+      if (!iframeSrc) continue;
+      var iframeMatch = iframeSrc.match(/[?&]id=([^&]+)/i);
+      if (iframeMatch && iframeMatch[1]) add(decodeURIComponent(iframeMatch[1]));
+    }
+    var gtm = window.google_tag_manager;
+    if (gtm && typeof gtm === 'object') {
+      for (var key in gtm) {
+        if (!Object.prototype.hasOwnProperty.call(gtm, key)) continue;
+        if (/^GTM-[A-Z0-9]+$/i.test(key)) add(key);
+      }
+    }
+    return ids;
+  } catch (e) {
+    return [];
+  }
+}
+
+function collectDataLayerEvents(){
+  try {
+    var entries = [];
+    var dl = window.dataLayer;
+    if (Array.isArray(dl)) {
+      entries = dl.slice();
+    } else if (dl && typeof dl === 'object') {
+      if (Array.isArray(dl.items)) {
+        entries = dl.items.slice();
+      } else if (typeof dl.length === 'number') {
+        for (var li = 0; li < dl.length; li++) {
+          entries.push(dl[li]);
+        }
+      }
+    }
+    var events = [];
+    var seen = {};
+    for (var i = 0; i < entries.length; i++) {
+      var entry = entries[i];
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+      var eventName = pickFirstGtmValue(entry, ['event','eventName','event_name']);
+      var action = pickFirstGtmValue(entry, ['eventAction','event_action','action','interaction']);
+      var category = pickFirstGtmValue(entry, ['eventCategory','event_category','category','group']);
+      var label = pickFirstGtmValue(entry, ['eventLabel','event_label','label','text','heading','linkName','link_name']);
+      var cta = pickFirstGtmValue(entry, ['cta','ctaText','cta_text','ctaName','cta_name','linkText','link_text','buttonText','button_text','elementText','element_text','gtm.element','gtm.elementTarget']);
+      if (!cta && label) cta = label;
+      var url = pickFirstGtmValue(entry, ['gtm.elementUrl','elementUrl','linkUrl','link_url','destinationUrl','destination_url','url']);
+      var elementId = pickFirstGtmValue(entry, ['gtm.elementId','elementId','element_id']);
+      var elementClasses = pickFirstGtmValue(entry, ['gtm.elementClasses','elementClasses','element_classes']);
+      var value = pickFirstGtmValue(entry, ['eventValue','event_value','value']);
+      var detailParts = [];
+      if (url) detailParts.push('URL: ' + url);
+      if (elementId) detailParts.push('Element ID: ' + elementId);
+      if (elementClasses) detailParts.push('Classes: ' + elementClasses);
+      if (value) detailParts.push('Value: ' + value);
+      if (Object.prototype.hasOwnProperty.call(entry, 'gtm.triggers')) {
+        var trig = normalizeGtmValue(entry['gtm.triggers'], 0);
+        if (trig) detailParts.push('Triggers: ' + trig);
+      }
+      var nonInteraction = entry && Object.prototype.hasOwnProperty.call(entry, 'nonInteraction') ? entry.nonInteraction : null;
+      if (nonInteraction === true || nonInteraction === 'true' || nonInteraction === 1 || nonInteraction === '1') {
+        detailParts.push('Non-interaction hit');
+      }
+      if (detailParts.length > 4) detailParts = detailParts.slice(0, 4);
+      var detail = detailParts.join(' · ');
+      if (detail.length > 200) detail = detail.slice(0, 197) + '…';
+      if (!eventName && !cta && !action && !category && !label && !detail) continue;
+      var key = [eventName || '', action || '', category || '', cta || '', label || '', detail || ''].join('|');
+      if (seen[key]) continue;
+      seen[key] = true;
+      events.push({
+        eventName: eventName || '',
+        cta: cta || '',
+        action: action || '',
+        category: category || '',
+        label: label || '',
+        detail: detail
+      });
+    }
+    return events;
+  } catch (e) {
+    return [];
+  }
+}
+
+function collectGtmSignals(){
+  try {
+    return {
+      containers: detectGtmContainers(),
+      events: collectDataLayerEvents()
+    };
+  } catch (e) {
+    return { containers: [], events: [] };
+  }
+}
+
 function collectWebVitalsOnce(){ return new Promise(resolve => { const out = { lcp: null, cls: 0, inp: null }; try { const poLcp = new PerformanceObserver((list)=>{ const entries=list.getEntries(); const last=entries[entries.length-1]; if (last) out.lcp = Math.round(last.startTime); }); poLcp.observe({ type: 'largest-contentful-paint', buffered: true }); const poCls = new PerformanceObserver((list)=>{ for (const e of list.getEntries()) { if (!e.hadRecentInput) out.cls += e.value; } }); poCls.observe({ type: 'layout-shift', buffered: true }); const poInp = new PerformanceObserver((list)=>{ for (const e of list.getEntries()) { const dur = e.duration; if (!out.inp || dur > out.inp) out.inp = Math.round(dur); } }); poInp.observe({ type: 'event', buffered: true, durationThreshold: 16 }); setTimeout(()=>resolve(out), 2500); } catch { resolve(out); } }); }
 async function simulateInfiniteScroll(){ const beforeCount = document.body.getElementsByTagName('*').length; const targetY = document.documentElement.scrollHeight - window.innerHeight - 5; window.scrollTo(0, Math.max(0, targetY)); const appended = await new Promise(res => { const start = Date.now(); const check = () => { const after = document.body.getElementsByTagName('*').length; if (after - beforeCount >= 20) { res(true); } else if (Date.now() - start > 2000) { res(false); } else { requestAnimationFrame(check); } }; requestAnimationFrame(check); }); return { appendedOnScroll: appended }; }
 if (!window.__SRA_CONTENT_ACTIVE__) {
@@ -800,6 +990,7 @@ if (!window.__SRA_CONTENT_ACTIVE__) {
             resourceHints: resourceHints(),
             images: imageStats(),
             mediaAssets: await collectMediaAssets(),
+            gtm: collectGtmSignals(),
             fonts: fontStats(),
             pagination: discoverPagination(),
             components: collectComponentReports(),

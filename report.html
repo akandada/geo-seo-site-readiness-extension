@@ -102,6 +102,8 @@
     .componentBadge.warn { background: rgba(227,160,8,0.18); color: #ffdca8; border-color: rgba(227,160,8,0.45); }
     .componentPreview { grid-column: 1 / -1; background: rgba(0,0,0,0.12); border: 1px dashed var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12px; color: var(--muted); }
     .componentMeta { display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; color: var(--muted); }
+    #gtmContainerMeta { margin-bottom: 6px; }
+    #gtmContainerList { margin: 8px 0 12px 0; }
     .tableWrap { overflow-x: auto; margin-top: 8px; }
     table.dataTable { width: 100%; min-width: 480px; border-collapse: collapse; font-size: 13px; }
     table.dataTable th, table.dataTable td { padding: 6px 10px; border-bottom: 1px solid var(--border); text-align: left; }
@@ -194,6 +196,29 @@
       <div class="componentMeta" id="componentMeta"></div>
       <div class="componentList" id="componentList"></div>
       <div class="muted small" id="componentEmpty" style="display:none;">No component details captured.</div>
+    </section>
+
+    <section class="card" id="gtmCard" style="display:none;">
+      <h2>GTM Events &amp; Tags</h2>
+      <div class="muted small" id="gtmContainerMeta"></div>
+      <div class="chips" id="gtmContainerList"></div>
+      <div class="tableWrap" id="gtmEventsWrap" style="display:none;">
+        <table class="dataTable" id="gtmEventsTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>CTA</th>
+              <th>Event</th>
+              <th>Action</th>
+              <th>Category</th>
+              <th>Label</th>
+              <th>Details</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="muted small" id="gtmEventsEmpty" style="display:none;">No GTM events detected.</div>
     </section>
 
     <section class="card" id="mediaInventoryCard" style="display:none;">
