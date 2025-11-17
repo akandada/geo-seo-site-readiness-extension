@@ -469,11 +469,11 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
   // ---------- scoring & report assembly ----------
   function computeAudit(dom, net){
     var CATS = {
-      geo:         { max: 35, score: 0, items: [] },
+      geo:         { max: 25, score: 0, items: [] },
       seo:         { max: 25, score: 0, items: [] },
       answer:      { max: 20, score: 0, items: [] },
-      a11y:        { max: 10, score: 0, items: [] },
-      performance: { max: 20, score: 0, items: [] },
+      a11y:        { max: 20, score: 0, items: [] },
+      performance: { max: 35, score: 0, items: [] },
       infinite:    { max: 10, score: 0, items: [] }
     };
 
@@ -627,17 +627,17 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
 
     // A11y
     var h1Total = get(dom,["h1Count"],0)||0;
-    addCat("a11y", 3, h1Total===1, "Single <h1> present", "Ensure exactly one <h1> summarizes the page.", "Detected " + h1Total + " <h1> element(s).", h1Total===1 ? "low" : "medium");
+    addCat("a11y", 6, h1Total===1, "Single <h1> present", "Ensure exactly one <h1> summarizes the page.", "Detected " + h1Total + " <h1> element(s).", h1Total===1 ? "low" : "medium");
 
     var imagesMissingAlt = get(dom,["imgWithoutAlt"],0)||0;
-    addCat("a11y", 3, imagesMissingAlt===0, "Images have alt", "Add meaningful alt text for informative images.", imagesMissingAlt===0 ? "All images include alt text." : imagesMissingAlt + " image(s) missing alt text.", imagesMissingAlt===0 ? "low" : "medium");
+    addCat("a11y", 6, imagesMissingAlt===0, "Images have alt", "Add meaningful alt text for informative images.", imagesMissingAlt===0 ? "All images include alt text." : imagesMissingAlt + " image(s) missing alt text.", imagesMissingAlt===0 ? "low" : "medium");
 
     var langSet = !!get(dom,["langOk"],false);
     var htmlLangVal = get(dom,["htmlLang"],"");
-    addCat("a11y", 2, langSet, "html[lang] set", "Set <html lang=\"...\"> for assistive tech.", langSet ? "html[lang] is set to '" + htmlLangVal + "'." : "html[lang] attribute not present.", langSet ? "low" : "medium");
+    addCat("a11y", 4, langSet, "html[lang] set", "Set <html lang=\"...\"> for assistive tech.", langSet ? "html[lang] is set to '" + htmlLangVal + "'." : "html[lang] attribute not present.", langSet ? "low" : "medium");
 
     var wordCount = get(dom,["mainWordCount"],0)||0;
-    addCat("a11y", 2, wordCount>=300, "Substantive text (>=300 words)", "Add at least 300 words of meaningful copy in the main region.", "Estimated main content word count: " + wordCount + ".", wordCount>=300 ? "low" : "medium");
+    addCat("a11y", 4, wordCount>=300, "Substantive text (>=300 words)", "Add at least 300 words of meaningful copy in the main region.", "Estimated main content word count: " + wordCount + ".", wordCount>=300 ? "low" : "medium");
 
     // Performance (Lighthouse curves + heuristics)
     var lcp = get(dom,["perf","lcp"],null);

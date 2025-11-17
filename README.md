@@ -20,7 +20,7 @@ Site Readiness Auditor is a Chrome extension that evaluates a page's performance
 1. **Popup trigger** – Clicking **Run audit** in `popup.html` wakes the background service worker and queries the active tab. 【F:popup.js†L25-L86】
 2. **DOM collection** – The content script (`content.js`) listens for `COLLECT_DOM_INFO`, gathers metadata and in-page signals, and simulates a scroll to detect dynamically injected content. 【F:content.js†L1-L70】
 3. **Network collection** – The service worker (`service_worker.js`) fetches site-level resources (robots, sitemap, AI policies) and infers pagination patterns from discovered sitemap URLs. 【F:service_worker.js†L33-L364】
-4. **Scoring** – The popup combines DOM and network snapshots into six weighted category scores (GEO 35, SEO 25, Answer Engine 20, A11y 10, Performance 20, Infinite 10), derives an overall grade, and lists key checks plus prioritized recommendations. 【F:popup.js†L470-L826】【F:popup.js†L910-L1010】
+4. **Scoring** – The popup combines DOM and network snapshots into six weighted category scores (GEO 25, SEO 25, Answer Engine 20, A11y 20, Performance 35, Infinite 10), derives an overall grade, and lists key checks plus prioritized recommendations. 【F:popup.js†L470-L826】【F:popup.js†L910-L1010】
 5. **Reporting** – Results are persisted under a random key. The **Open full report** button launches `report.html`, which formats category cards, pagination diagnostics, and raw JSON. 【F:popup.js†L62-L86】【F:report.js†L53-L120】
 
 ## Scoring System Deep Dive
@@ -29,14 +29,14 @@ The overall readiness score is the weighted sum of six categories. Each category
 
 | Category | Max Points | Focus |
 | --- | --- | --- |
-| GEO / LLM | 35 | Crawl permissions for AI agents and AI policy declarations |
+| GEO / LLM | 25 | Crawl permissions for AI agents and AI policy declarations |
 | SEO | 25 | Discoverability, canonicalization, and snippet hygiene |
 | Answer Engine | 20 | FAQ/HowTo schema, speakable markup, summaries, and citations |
-| Accessibility | 10 | Semantic headings, alt text, language, and content depth |
-| Performance | 20 | Core Web Vitals + delivery optimizations |
+| Accessibility | 20 | Semantic headings, alt text, language, and content depth |
+| Performance | 35 | Core Web Vitals + delivery optimizations |
 | Infinite Scroll | 10 | Crawl-friendly pagination for infinite feeds |
 
-### GEO / LLM (35 pts)
+### GEO / LLM (25 pts)
 
 The extension inspects AI policy endpoints and `robots.txt` allowances for leading AI crawlers. Passing each signal adds its weight to the GEO score:
 
@@ -76,18 +76,18 @@ Answer-engine scoring highlights signals that improve eligibility for generative
 * **Summaries & tables of contents (3 pts)** – Detects key-takeaway lists, callout summaries, or TOC anchor clusters near the top of the article. 【F:content.js†L233-L331】【F:popup.js†L614-L621】
 * **Authoritative citations (2 pts)** – Uses the GEO content analysis to confirm outbound links to trustworthy domains. 【F:content.js†L66-L128】【F:popup.js†L623-L626】
 
-### Accessibility (10 pts)
+### Accessibility (20 pts)
 
 Accessibility scoring focuses on quick heuristics drawn from the DOM snapshot:
 
-* **Exactly one `<h1>` (3 pts)** – Reports excess or missing primary headings. 【F:popup.js†L590-L594】
-* **All images have `alt` text (3 pts)** – Counts missing alt attributes. 【F:popup.js†L596-L600】
-* **`<html lang>` set (2 pts)** – Verifies the document language for assistive technologies. 【F:popup.js†L602-L605】
-* **≥300 words in main content (2 pts)** – Encourages substantive text for screen readers and SEO alike. 【F:popup.js†L607-L611】
+* **Exactly one `<h1>` (6 pts)** – Reports excess or missing primary headings. 【F:popup.js†L590-L594】
+* **All images have `alt` text (6 pts)** – Counts missing alt attributes. 【F:popup.js†L596-L600】
+* **`<html lang>` set (4 pts)** – Verifies the document language for assistive technologies. 【F:popup.js†L602-L605】
+* **≥300 words in main content (4 pts)** – Encourages substantive text for screen readers and SEO alike. 【F:popup.js†L607-L611】
 
-### Performance (20 pts)
+### Performance (35 pts)
 
-Performance points blend Lighthouse’s Core Web Vitals curves with delivery heuristics. Lighthouse metrics accumulate up to their assigned weights (`LCP` 10, `CLS` 4, `INP` 6). Additional heuristics grant points when best practices are detected; the total is clamped to 20 so Lighthouse performance remains the primary driver. 【F:popup.js†L618-L703】
+Performance points blend Lighthouse’s Core Web Vitals curves with delivery heuristics. Lighthouse metrics accumulate up to their assigned weights (`LCP` 10, `CLS` 4, `INP` 6). Additional heuristics grant points when best practices are detected; the total is clamped to 35 so Lighthouse performance remains the primary driver. 【F:popup.js†L618-L703】
 
 * **Core Web Vitals** – Uses `scoreWebVitals` to translate raw measurements into Lighthouse-style buckets, logging the measured value and percentile references. Failing metrics add targeted tuning advice. 【F:popup.js†L618-L655】【F:lighthouse_metrics.js†L1-L118】
 * **Compression enabled (5 pts)** – Requires `Content-Encoding` of `br`, `gzip`, or `zstd` on the root response. 【F:popup.js†L657-L662】
