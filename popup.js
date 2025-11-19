@@ -469,7 +469,7 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
   // ---------- scoring & report assembly ----------
   function computeAudit(dom, net){
     var CATS = {
-      geo:         { max: 25, score: 0, items: [] },
+      geo:         { max: 22, score: 0, items: [] },
       seo:         { max: 25, score: 0, items: [] },
       answer:      { max: 20, score: 0, items: [] },
       a11y:        { max: 20, score: 0, items: [] },
@@ -517,18 +517,18 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
     var aiTxtUrl    = get(net,["aiTxt","url"],"");
     var aiTxtCt     = get(net,["aiTxt","ct"],"");
     var aiTxtDetail = aiTxtOk ?
-      "Detected plain-text ai.txt at " + (aiTxtUrl || "/ai.txt") + (aiTxtCt ? " (" + aiTxtCt + ")" : "") + "." :
-      "Response status " + aiTxtStatus + " or non-text content prevented detecting /ai.txt.";
-    addCat("geo", 8, aiTxtOk, aiTxtOk ? "ai.txt present" : "ai.txt missing", "Publish /ai.txt to declare how AI/LLM tools may use your content.", aiTxtDetail, aiTxtOk ? "low" : "high");
+      "Detected plain-text ai.txt at " + (aiTxtUrl || "/ai.txt") + (aiTxtCt ? " (" + aiTxtCt + ")" : "") + ". (Informational only—does not affect score.)" :
+      "Response status " + aiTxtStatus + " or non-text content prevented detecting /ai.txt. (Informational only—does not affect score.)";
+    addCat("geo", 0, aiTxtOk, aiTxtOk ? "ai.txt present" : "ai.txt missing", "Publish /ai.txt to declare how AI/LLM tools may use your content.", aiTxtDetail, aiTxtOk ? "low" : "high");
 
     var llmsTxtOk = get(net,["llmsTxt","exists"],false)===true;
     var llmsStatus = get(net,["llmsTxt","status"],0);
     var llmsUrl    = get(net,["llmsTxt","url"],"");
     var llmsCt     = get(net,["llmsTxt","ct"],"");
     var llmsDetail = llmsTxtOk ?
-      "Detected plain-text llms.txt at " + (llmsUrl || "/llms.txt") + (llmsCt ? " (" + llmsCt + ")" : "") + "." :
-      "Response status " + llmsStatus + " or non-text content prevented detecting /llms.txt.";
-    addCat("geo", 5, llmsTxtOk, llmsTxtOk ? "llms.txt present" : "llms.txt missing", "Expose /llms.txt if you want to advertise AI licensing terms.", llmsDetail, llmsTxtOk ? "low" : "medium");
+      "Detected plain-text llms.txt at " + (llmsUrl || "/llms.txt") + (llmsCt ? " (" + llmsCt + ")" : "") + ". (Informational only—does not affect score.)" :
+      "Response status " + llmsStatus + " or non-text content prevented detecting /llms.txt. (Informational only—does not affect score.)";
+    addCat("geo", 0, llmsTxtOk, llmsTxtOk ? "llms.txt present" : "llms.txt missing", "Expose /llms.txt if you want to advertise AI licensing terms.", llmsDetail, llmsTxtOk ? "low" : "medium");
 
     function botDetail(botName, allowed){
       return allowed ?
