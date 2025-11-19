@@ -35,12 +35,36 @@ function updateCharts(data, overallScore) {
   }
 
   var catMap = [
-    ["GEO / LLM Readiness", data.categories && data.categories.geo],
-    ["Crawlability & SEO", data.categories && data.categories.seo],
-    ["Answer Engine Optimization", data.categories && data.categories.answer],
-    ["Accessibility & Semantics", data.categories && data.categories.a11y],
-    ["Performance", data.categories && data.categories.performance],
-    ["Infinite Scroll Pattern", data.categories && data.categories.infinite]
+    {
+      title: "GEO / LLM Readiness",
+      cat: data.categories && data.categories.geo,
+      helper: "Out of 22 points based on AI crawler permissions, policy file availability, and penalties for noai directives."
+    },
+    {
+      title: "Crawlability & SEO",
+      cat: data.categories && data.categories.seo,
+      helper: "Max 25 points for sitemap discovery, indexability, structured data, canonical tags, and healthy title/description lengths."
+    },
+    {
+      title: "Answer Engine Optimization",
+      cat: data.categories && data.categories.answer,
+      helper: "Up to 20 points awarded for FAQ/HowTo schema, speakable markup, question modules, summaries, and authoritative citations."
+    },
+    {
+      title: "Accessibility & Semantics",
+      cat: data.categories && data.categories.a11y,
+      helper: "Scores to 20 points by checking a single <h1>, alt text coverage, declared html lang, and ≥300-word content depth."
+    },
+    {
+      title: "Performance",
+      cat: data.categories && data.categories.performance,
+      helper: "Capped at 35 points combining Lighthouse Core Web Vitals with bonuses for compression, caching, resource hints, modern image formats, lazy loading, and font-display."
+    },
+    {
+      title: "Infinite Scroll Pattern",
+      cat: data.categories && data.categories.infinite,
+      helper: "Worth up to 10 points for crawlable pagination URLs, successful page-2 fetches, and visible or hinted pagination controls."
+    }
   ];
 
   var container = $("categoryCards");
@@ -51,11 +75,11 @@ function updateCharts(data, overallScore) {
     var chartEmpty = $("scoreChartEmpty");
     var chartData = [];
 
-    catMap.forEach(function(pair){
-      var title = pair[0];
-      var cat = pair[1];
+    catMap.forEach(function(entry){
+      var title = entry.title;
+      var cat = entry.cat;
       if (!cat) return;
-      container.appendChild(cardEl(title, cat.score, cat.items));
+      container.appendChild(cardEl(title, cat.score, cat.items, entry.helper));
       if (cat.score != null) {
         var num = Number(cat.score);
         if (num === num) {
@@ -88,7 +112,7 @@ function updateCharts(data, overallScore) {
     if (breakdownCanvas && breakdownCard) {
       var counts = { ok: 0, warn: 0, bad: 0, info: 0 };
       for (var ci = 0; ci < catMap.length; ci++) {
-        var catEntry = catMap[ci][1];
+        var catEntry = catMap[ci].cat;
         var items = catEntry && catEntry.items ? catEntry.items : [];
         for (var ii = 0; ii < items.length; ii++) {
           var item = items[ii];
