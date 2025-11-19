@@ -156,6 +156,7 @@
   <main>
     <section class="card" id="chartDashboardCard" style="display:none;">
       <h2>Score &amp; Findings Overview</h2>
+      <div class="muted small">Overall score is a weighted sum across GEO (22), SEO (25), Answer Engine (20), Accessibility (20), Performance (35), and Infinite Scroll (10). Charts display the normalized 0–100 values derived from those point pools.</div>
       <div class="chartDashboard">
         <div class="chartPanel" id="overallGaugeCard" style="display:none;">
           <h3>Overall Score</h3>
@@ -191,6 +192,7 @@
 
     <section class="card" id="lighthouseCard" style="display:none;">
       <h2>Lighthouse Core Web Vitals</h2>
+      <div class="muted small">This /100 score blends LCP, CLS, and INP via Lighthouse log-normal/logistic curves; each metric also lists the extension points earned toward the Performance category.</div>
       <div class="score" id="lighthouseScore">—</div>
       <div class="muted small" id="lighthouseSource"></div>
       <ul class="list" id="lighthouseMetricsList"></ul>
