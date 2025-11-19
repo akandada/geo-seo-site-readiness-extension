@@ -43,14 +43,16 @@ export function renderOverallGauge(canvas, score) {
   ctx.arc(center, center, radius - trackWidth / 2, start, end, false);
   ctx.stroke();
 
-  ctx.fillStyle = "#e6eef6";
+  var textColor = "#000";
+
+  ctx.fillStyle = textColor;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.font = "28px 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
   ctx.fillText(Math.round(clamped), center, center - 6);
 
   ctx.font = "16px 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
-  ctx.fillStyle = "rgba(230,238,246,0.75)";
+  ctx.fillStyle = textColor;
   ctx.fillText("Grade " + grade(clamped), center, center + 18);
 }
 
@@ -147,7 +149,7 @@ export function renderScoreChart(canvas, categories) {
 
   var font = "13px 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
   var trackColor = "rgba(92,162,255,0.14)";
-  var textColor = "#e6eef6";
+  var textColor = "#000";
 
   ctx.fillStyle = "rgba(255,255,255,0.03)";
   ctx.fillRect(0, 0, width, height);
