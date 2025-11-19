@@ -182,6 +182,13 @@ function renderHeader(data) {
 }
 
 (function init(){
+  var downloadBtn = $("downloadPdf");
+  if (downloadBtn) {
+    downloadBtn.addEventListener("click", function(){
+      window.print();
+    });
+  }
+
   var params = parseQuery();
   var key = params["k"];
   if (!key) {
