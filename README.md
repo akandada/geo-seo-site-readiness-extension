@@ -1,6 +1,6 @@
-# Site Readiness Auditor Chrome Extension
+# Site Quality Index Chrome Extension
 
-Site Readiness Auditor is a Chrome extension that evaluates a page's performance, crawlability, GEO/LLM readiness, answer-engine signals, accessibility, and infinite scroll patterns. It combines DOM heuristics with network-level fetches to produce an overall readiness score and actionable recommendations.
+Site Quality Index is a Chrome extension that evaluates a page's performance, crawlability, GEO/LLM readiness, answer-engine signals, accessibility, and infinite scroll patterns. It combines DOM heuristics with network-level fetches to produce an overall readiness score and actionable recommendations.
 
 ![Alt text](/screen_shot.png?raw=true "Optional Title")
 
@@ -139,5 +139,5 @@ Follow these steps to load the extension locally for exploratory or regression t
 
 - The codebase avoids optional chaining/nullish coalescing in popup/report scripts to stay compatible with older Chromium builds. 【F:popup.js†L1-L7】【F:report.js†L1-L3】
 - Background tasks run in `service_worker.js`, while UI logic lives in `popup.js` and `report.js`. Content inspection is isolated in `content.js`.
-- To debug background fetches, open `chrome://extensions`, locate **Site Readiness Auditor**, and inspect the service worker console.
+- To debug background fetches, open `chrome://extensions`, locate **Site Quality Index**, and inspect the service worker console.
 
