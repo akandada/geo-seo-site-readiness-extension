@@ -2,20 +2,20 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Site Readiness Auditor – Report</title>
+  <title>Site Quality Index – Report</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     :root {
-      --bg: #0b0f14;
-      --card: #121821;
-      --muted: #8aa0b6;
-      --text: #e6eef6;
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --muted: #4b5563;
+      --text: #0f172a;
       --ok: #2aa745;
-      --warn: #e3a008;
-      --bad: #e63946;
-      --chip: #1a2230;
-      --border: #223044;
-      --accent: #5ca2ff;
+      --warn: #b7791f;
+      --bad: #c53030;
+      --chip: #f0f4ff;
+      --border: #d6e0ea;
+      --accent: #3b82f6;
     }
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
@@ -24,10 +24,27 @@
     header { padding: 20px; border-bottom: 1px solid var(--border); }
     header h1 { margin: 0 0 8px 0; font-size: 20px; letter-spacing: 0.3px; }
     header .row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .actions { margin-left: auto; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
     .url { opacity: 0.9; word-break: break-all; }
-    .overall { margin-left: auto; display: flex; align-items: baseline; gap: 10px; }
+    .overall { display: flex; align-items: baseline; gap: 10px; }
     .overall .score { font-size: 28px; font-weight: 700; padding: 6px 12px; background: var(--chip); border: 1px solid var(--border); border-radius: 10px; }
     .overall .grade { font-size: 18px; opacity: 0.9; }
+
+    .actionBtn {
+      background: var(--accent);
+      color: #0b0f14;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 80ms ease, box-shadow 120ms ease;
+      box-shadow: 0 8px 24px rgba(92,162,255,0.18);
+    }
+
+    .actionBtn:hover { transform: translateY(-1px); }
+    .actionBtn:active { transform: translateY(0); box-shadow: none; }
 
     main { padding: 20px; display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; }
 
@@ -81,7 +98,7 @@
     .legend-swatch { width: 10px; height: 10px; border-radius: 999px; }
     .small { font-size: 12px; }
 
-    pre { margin: 0; padding: 12px; background: #0b0f14; color: #cfe5ff; border: 1px solid var(--border); border-radius: 10px; overflow: auto; font-size: 12px; line-height: 1.45; }
+    pre { margin: 0; padding: 12px; background: #eef2ff; color: #0f172a; border: 1px solid var(--border); border-radius: 10px; overflow: auto; font-size: 12px; line-height: 1.45; }
 
     .kv { display: grid; grid-template-columns: 160px 1fr; gap: 8px; }
     .kv div { padding: 2px 0; }
@@ -93,15 +110,17 @@
     details.component summary { cursor: pointer; font-weight: 600; outline: none; }
     details.component summary::marker { color: var(--accent); }
     .componentBody { margin-top: 10px; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
-    .componentMetrics { background: rgba(0,0,0,0.1); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; display: grid; grid-template-columns: 1fr; gap: 6px; font-size: 12px; }
+    .componentMetrics { background: rgba(15,23,42,0.04); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; display: grid; grid-template-columns: 1fr; gap: 6px; font-size: 12px; }
     .componentMetric { display: flex; flex-direction: column; gap: 2px; }
     .componentMetric .label { font-weight: 600; opacity: 0.9; }
     .componentMetric .value { color: var(--muted); }
     .componentBadges { display: flex; flex-wrap: wrap; gap: 6px; }
     .componentBadge { background: rgba(230,57,70,0.2); color: #ff9fa8; border: 1px solid rgba(230,57,70,0.45); border-radius: 999px; padding: 4px 8px; font-size: 12px; }
     .componentBadge.warn { background: rgba(227,160,8,0.18); color: #ffdca8; border-color: rgba(227,160,8,0.45); }
-    .componentPreview { grid-column: 1 / -1; background: rgba(0,0,0,0.12); border: 1px dashed var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12px; color: var(--muted); }
+    .componentPreview { grid-column: 1 / -1; background: rgba(15,23,42,0.06); border: 1px dashed var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12px; color: var(--muted); }
     .componentMeta { display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; color: var(--muted); }
+    #gtmContainerMeta { margin-bottom: 6px; }
+    #gtmContainerList { margin: 8px 0 12px 0; }
     .tableWrap { overflow-x: auto; margin-top: 8px; }
     table.dataTable { width: 100%; min-width: 480px; border-collapse: collapse; font-size: 13px; }
     table.dataTable th, table.dataTable td { padding: 6px 10px; border-bottom: 1px solid var(--border); text-align: left; }
@@ -109,16 +128,27 @@
     table.dataTable td:nth-child(1), table.dataTable th:nth-child(1) { width: 40px; text-align: right; }
     table.dataTable td:nth-child(4), table.dataTable th:nth-child(4) { white-space: nowrap; }
     table.dataTable tbody tr:last-child td { border-bottom: none; }
+
+    @media print {
+      body, main, header, .card, .chartPanel { background: var(--bg) !important; color: var(--text) !important; }
+      .actionBtn { display: none; }
+      .chip, .score, .list li, .geoList li, .chartPanel, .card, pre { border-color: var(--border) !important; }
+      .chip, .score, .list li, .geoList li, .chartPanel { background: var(--chip) !important; }
+      .muted { color: var(--muted) !important; }
+    }
   </style>
 </head>
 <body>
   <header>
     <div class="row">
-      <h1>Site Readiness Auditor – Report</h1>
+      <h1>Site Quality Index – Report</h1>
       <div class="url" id="url"></div>
-      <div class="overall">
-        <div class="score" id="overallScore">—</div>
-        <div class="grade" id="overallGrade">—</div>
+      <div class="actions">
+        <button class="actionBtn" id="downloadPdf">Download PDF</button>
+        <div class="overall">
+          <div class="score" id="overallScore">—</div>
+          <div class="grade" id="overallGrade">—</div>
+        </div>
       </div>
     </div>
   </header>
@@ -126,6 +156,7 @@
   <main>
     <section class="card" id="chartDashboardCard" style="display:none;">
       <h2>Score &amp; Findings Overview</h2>
+      <div class="muted small">Overall score is a weighted sum across GEO (22), SEO (25), Answer Engine (20), Accessibility (20), Performance (35), and Infinite Scroll (10). Charts display the normalized 0–100 values derived from those point pools.</div>
       <div class="chartDashboard">
         <div class="chartPanel" id="overallGaugeCard" style="display:none;">
           <h3>Overall Score</h3>
@@ -161,6 +192,7 @@
 
     <section class="card" id="lighthouseCard" style="display:none;">
       <h2>Lighthouse Core Web Vitals</h2>
+      <div class="muted small">This /100 score blends LCP, CLS, and INP via Lighthouse log-normal/logistic curves; each metric also lists the extension points earned toward the Performance category.</div>
       <div class="score" id="lighthouseScore">—</div>
       <div class="muted small" id="lighthouseSource"></div>
       <ul class="list" id="lighthouseMetricsList"></ul>
@@ -189,11 +221,27 @@
       <div class="muted small" id="geoDeepDiveEmpty" style="display:none;">No GEO insights available.</div>
     </section>
 
-    <section class="card" id="componentInventoryCard" style="display:none;">
-      <h2>Component Inventory</h2>
-      <div class="componentMeta" id="componentMeta"></div>
-      <div class="componentList" id="componentList"></div>
-      <div class="muted small" id="componentEmpty" style="display:none;">No component details captured.</div>
+    <section class="card" id="gtmCard" style="display:none;">
+      <h2>GTM Events &amp; Tags</h2>
+      <div class="muted small" id="gtmContainerMeta"></div>
+      <div class="chips" id="gtmContainerList"></div>
+      <div class="tableWrap" id="gtmEventsWrap" style="display:none;">
+        <table class="dataTable" id="gtmEventsTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>CTA</th>
+              <th>Event</th>
+              <th>Action</th>
+              <th>Category</th>
+              <th>Label</th>
+              <th>Details</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="muted small" id="gtmEventsEmpty" style="display:none;">No GTM events detected.</div>
     </section>
 
     <section class="card" id="mediaInventoryCard" style="display:none;">
@@ -233,7 +281,7 @@
       <ul class="list" id="recommendations"></ul>
     </section>
 
-    <section class="card">
+    <section class="card" style="display:none;">
       <h2>Raw Data (debug)</h2>
       <pre id="raw">{}</pre>
     </section>

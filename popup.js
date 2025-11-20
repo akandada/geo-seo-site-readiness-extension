@@ -4,57 +4,57 @@
 
 import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
 
-(function(){
+(function () {
   "use strict";
 
   // ---------- DOM refs ----------
-  var runBtn         = document.getElementById("run");
-  var reportBtn      = document.getElementById("openReport");
-  var scoreEl        = document.getElementById("score");
-  var gradeEl        = document.getElementById("grade");
-  var summaryText    = document.getElementById("summaryText");
-  var progressEl     = document.getElementById("progress");
-  var checklist      = document.getElementById("checklist");
-  var recommendationsEl  = document.getElementById("recommendations");
-  var catsEl         = document.getElementById("cats");
-  var pathList       = document.getElementById("pathList");
-  var pageSummaries  = document.getElementById("pageSummaries");
+  var runBtn = document.getElementById("run");
+  var reportBtn = document.getElementById("openReport");
+  var scoreEl = document.getElementById("score");
+  var gradeEl = document.getElementById("grade");
+  var summaryText = document.getElementById("summaryText");
+  var progressEl = document.getElementById("progress");
+  var checklist = document.getElementById("checklist");
+  var recommendationsEl = document.getElementById("recommendations");
+  var catsEl = document.getElementById("cats");
+  var pathList = document.getElementById("pathList");
+  var pageSummaries = document.getElementById("pageSummaries");
 
   // ---------- helpers ----------
-  function gradeFromScore(score){ if(score>=90)return"A"; if(score>=80)return"B"; if(score>=70)return"C"; if(score>=60)return"D"; return"F"; }
-  function pct(x,max){ var val=Math.max(0,Math.min(Number(x)||0,max)); return Math.round((val/max)*100); }
-  function get(obj,path,fallback){
-    var cur=obj;
-    for (var i=0;i<path.length;i++){
-      if (!cur || typeof cur!=="object" || !(path[i] in cur)) return fallback;
-      cur=cur[path[i]];
+  function gradeFromScore(score) { if (score >= 90) return "A"; if (score >= 80) return "B"; if (score >= 70) return "C"; if (score >= 60) return "D"; return "F"; }
+  function pct(x, max) { var val = Math.max(0, Math.min(Number(x) || 0, max)); return Math.round((val / max) * 100); }
+  function get(obj, path, fallback) {
+    var cur = obj;
+    for (var i = 0; i < path.length; i++) {
+      if (!cur || typeof cur !== "object" || !(path[i] in cur)) return fallback;
+      cur = cur[path[i]];
     }
-    return cur===undefined?fallback:cur;
+    return cur === undefined ? fallback : cur;
   }
 
-  var CATEGORY_ORDER = ["geo","seo","a11y","performance","infinite"];
+  var CATEGORY_ORDER = ["geo", "seo", "answer", "a11y", "performance", "infinite"];
   var lastReportKey = null;
 
-  function resetProgress(){ if(progressEl) progressEl.innerHTML=""; }
-  function pushProgress(text, state){
-    if(!progressEl) return;
+  function resetProgress() { if (progressEl) progressEl.innerHTML = ""; }
+  function pushProgress(text, state) {
+    if (!progressEl) return;
     var div = document.createElement("div");
     div.className = "progress-item" + (state ? " " + state : "");
     div.textContent = text;
     progressEl.appendChild(div);
   }
 
-  function delay(ms){ return new Promise(function(res){ setTimeout(res, ms); }); }
+  function delay(ms) { return new Promise(function (res) { setTimeout(res, ms); }); }
 
-  function getErrorMessage(err){
+  function getErrorMessage(err) {
     if (!err) return "";
     if (typeof err === "string") return err;
     if (typeof err.message === "string") return err.message;
     try { return String(err); }
-    catch (e){ return ""; }
+    catch (e) { return ""; }
   }
 
-  function isNoReceiverError(err){
+  function isNoReceiverError(err) {
     var msg = getErrorMessage(err);
     if (!msg) return false;
     if (msg.indexOf("Could not establish connection") !== -1) return true;
@@ -63,7 +63,7 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
     return false;
   }
 
-  async function injectContentScript(tabId){
+  async function injectContentScript(tabId) {
     if (!tabId) return false;
     try {
       await chrome.scripting.executeScript({
@@ -77,16 +77,15 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
     }
   }
 
-  async function requestDomInfoWithRetry(tabId, attempts){
+  async function requestDomInfoWithRetry(tabId, attempts) {
     if (!tabId) return null;
     var maxAttempts = attempts && attempts > 0 ? attempts : 3;
     var lastError = null;
-    var injected = false;
-    for (var i=0; i<maxAttempts; i++){
+    for (var i = 0; i < maxAttempts; i++) {
       try {
-        if (!injected || (lastError && isNoReceiverError(lastError))) {
+        if (i > 0 || (lastError && isNoReceiverError(lastError))) { // Only try injection if it's not the first attempt or if injection failed previously
           var injectedNow = await injectContentScript(tabId);
-          injected = injected || injectedNow;
+          // Injected = injected || injectedNow; // Removed unnecessary variable 'injected'
         }
         return await chrome.tabs.sendMessage(tabId, { type: "COLLECT_DOM_INFO" });
       } catch (err) {
@@ -103,7 +102,7 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
     return null;
   }
 
-  function shortLabel(url, origin){
+  function shortLabel(url, origin) {
     try {
       var u = new URL(url);
       if (origin && u.origin === origin) {
@@ -117,7 +116,7 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
     }
   }
 
-  function parseAdditionalTargets(text, baseUrl){
+  function parseAdditionalTargets(text, baseUrl) {
     var out = { urls: [], warnings: [] };
     if (!text) return out;
     var lines = text.split(/[\n,]/);
@@ -125,7 +124,7 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
     var seen = {};
     var baseHref = baseUrl && baseUrl.href ? baseUrl.href.replace(/#.*$/, "") : "";
     var baseOrigin = baseUrl && baseUrl.origin ? baseUrl.origin : "";
-    for (var i=0;i<lines.length;i++){
+    for (var i = 0; i < lines.length; i++) {
       var raw = lines[i];
       if (!raw) continue;
       var trimmed = raw.trim();
@@ -171,19 +170,19 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
     return out;
   }
 
-  async function waitForTabComplete(tabId){
+  async function waitForTabComplete(tabId) {
     if (!tabId) return;
     try {
       var tab = await chrome.tabs.get(tabId);
       if (tab && tab.status === "complete") return;
-    } catch (e) {}
-    return new Promise(function(resolve){
-      var timeout = setTimeout(function(){
+    } catch (e) { }
+    return new Promise(function (resolve) {
+      var timeout = setTimeout(function () {
         chrome.tabs.onUpdated.removeListener(listener);
         resolve();
       }, 15000);
-      function listener(updatedId, info){
-        if (updatedId === tabId && info && info.status === "complete"){
+      function listener(updatedId, info) {
+        if (updatedId === tabId && info && info.status === "complete") {
           clearTimeout(timeout);
           chrome.tabs.onUpdated.removeListener(listener);
           resolve();
@@ -193,27 +192,27 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
     });
   }
 
-  function severityValue(state){
+  function severityValue(state) {
     if (state === "bad") return 3;
     if (state === "warn") return 2;
     if (state === "ok") return 1;
     return 0;
   }
 
-  function recommendationSeverityValue(sev){
+  function recommendationSeverityValue(sev) {
     if (sev === "high") return 3;
     if (sev === "medium") return 2;
     if (sev === "low") return 1;
     return 0;
   }
 
-  function aggregatePageResults(pages, origin){
-    var list = Array.isArray(pages) ? pages.filter(function(p){ return p && p.audit; }) : [];
+  function aggregatePageResults(pages, origin) {
+    var list = Array.isArray(pages) ? pages.filter(function (p) { return p && p.audit; }) : [];
     if (!list.length) {
       return computeAudit({ url: origin || "" }, { url: origin || "" });
     }
 
-    var metaPages = list.map(function(page){
+    var metaPages = list.map(function (page) {
       return {
         url: page.url,
         label: page.label,
@@ -229,7 +228,7 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
         overall: single.overall,
         categories: single.categories,
         keyChecks: single.keyChecks,
-      recommendations: single.recommendations,
+        recommendations: single.recommendations,
         lighthouse: single.lighthouse,
         dom: single.dom,
         net: single.net
@@ -252,15 +251,15 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
 
     var overallTotal = 0;
     var catTotals = {};
-    for (var ci=0; ci<CATEGORY_ORDER.length; ci++) {
+    for (var ci = 0; ci < CATEGORY_ORDER.length; ci++) {
       catTotals[CATEGORY_ORDER[ci]] = 0;
     }
 
-    for (var i=0;i<list.length;i++){
+    for (var i = 0; i < list.length; i++) {
       var res = list[i].audit;
       var overallScore = res.overall && res.overall.score != null ? Number(res.overall.score) || 0 : 0;
       overallTotal += overallScore;
-      for (var j=0;j<CATEGORY_ORDER.length;j++){
+      for (var j = 0; j < CATEGORY_ORDER.length; j++) {
         var catName = CATEGORY_ORDER[j];
         var catObj = res.categories && res.categories[catName];
         var catScore = catObj && catObj.score != null ? Number(catObj.score) || 0 : 0;
@@ -274,17 +273,17 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
     agg.overall.score = roundedOverall;
     agg.overall.grade = gradeFromScore(roundedOverall);
 
-    for (var k=0;k<CATEGORY_ORDER.length;k++){
+    for (var k = 0; k < CATEGORY_ORDER.length; k++) {
       var name = CATEGORY_ORDER[k];
       var avg = catTotals[name] / list.length;
       if (avg !== avg) avg = 0;
       var catScoreRounded = Math.round(avg);
       var combinedItems = [];
-      for (var li=0; li<list.length; li++){
+      for (var li = 0; li < list.length; li++) {
         var page = list[li];
         var cat = page.audit.categories && page.audit.categories[name];
         if (!cat || !cat.items) continue;
-        for (var ii=0; ii<cat.items.length; ii++){
+        for (var ii = 0; ii < cat.items.length; ii++) {
           var item = cat.items[ii];
           if (!item) continue;
           combinedItems.push({
@@ -299,11 +298,11 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
     }
 
     var combinedChecks = [];
-    for (var pi=0; pi<list.length; pi++){
+    for (var pi = 0; pi < list.length; pi++) {
       var pageRes = list[pi].audit;
       var label = list[pi].label;
       var kc = pageRes.keyChecks || [];
-      for (var ki=0; ki<kc.length; ki++){
+      for (var ki = 0; ki < kc.length; ki++) {
         var entry = kc[ki];
         if (!entry) continue;
         combinedChecks.push({
@@ -313,16 +312,16 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
         });
       }
     }
-    combinedChecks.sort(function(a,b){ return severityValue(b.state) - severityValue(a.state); });
-    agg.keyChecks = combinedChecks.slice(0,12);
+    combinedChecks.sort(function (a, b) { return severityValue(b.state) - severityValue(a.state); });
+    agg.keyChecks = combinedChecks.slice(0, 12);
 
     var recommendationMap = {};
     var recommendationList = [];
-    for (var si=0; si<list.length; si++){
+    for (var si = 0; si < list.length; si++) {
       var pageRes = list[si].audit;
       var pageLabel = list[si].label;
       var pageRecs = pageRes.recommendations || [];
-      for (var sj=0; sj<pageRecs.length; sj++){
+      for (var sj = 0; sj < pageRecs.length; sj++) {
         var rec = pageRecs[sj];
         if (!rec || !rec.text) continue;
         var cat = rec.category || "general";
@@ -340,7 +339,7 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
         }
       }
     }
-    recommendationList.sort(function(a, b){
+    recommendationList.sort(function (a, b) {
       var diff = recommendationSeverityValue(b.severity) - recommendationSeverityValue(a.severity);
       if (diff !== 0) return diff;
       return a.text.localeCompare(b.text);
@@ -351,34 +350,34 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
   }
 
   // ---------- service worker wake/diagnostics ----------
-  async function pingWorkerOnce(){
+  async function pingWorkerOnce() {
     try {
-      var res = await chrome.runtime.sendMessage({ type:"PING" });
+      var res = await chrome.runtime.sendMessage({ type: "PING" });
       return !!(res && res.ok);
-    } catch(e){
+    } catch (e) {
       return false;
     }
   }
-  async function ensureWorkerAwake(){
+  async function ensureWorkerAwake() {
     // MV3 service workers spin up on demand; try twice
     if (await pingWorkerOnce()) return true;
-    await new Promise(function(r){ setTimeout(r,150); });
+    await new Promise(function (r) { setTimeout(r, 150); });
     return await pingWorkerOnce();
   }
 
   // ---------- open report ----------
-  if (reportBtn){
-    reportBtn.addEventListener("click", function(){
+  if (reportBtn) {
+    reportBtn.addEventListener("click", function () {
       if (!lastReportKey) return;
-      var url = chrome.runtime.getURL("report.html?k="+encodeURIComponent(lastReportKey));
+      var url = chrome.runtime.getURL("report.html?k=" + encodeURIComponent(lastReportKey));
       chrome.tabs.create({ url: url });
     });
   }
 
   // ---------- run audit ----------
-  if (runBtn){
-    runBtn.addEventListener("click", function(){
-      (async function run(){
+  if (runBtn) {
+    runBtn.addEventListener("click", function () {
+      (async function run() {
         try {
           runBtn.disabled = true;
           if (reportBtn) reportBtn.disabled = true;
@@ -387,7 +386,7 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
           pushProgress("Starting audit…");
           if (summaryText) summaryText.textContent = "Running audit…";
 
-          var tabs = await chrome.tabs.query({ active:true, currentWindow:true });
+          var tabs = await chrome.tabs.query({ active: true, currentWindow: true });
           var tab = tabs && tabs[0];
 
           if (!tab || !tab.id || !/^https?:/i.test(tab.url || "")) {
@@ -406,24 +405,24 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
           var origin = baseUrl.origin;
 
           var parsed = parseAdditionalTargets(pathList ? pathList.value : "", baseUrl);
-          for (var w=0; w<parsed.warnings.length; w++){
+          for (var w = 0; w < parsed.warnings.length; w++) {
             pushProgress(parsed.warnings[w], "warn");
           }
 
           var targets = [];
           var seenMap = {};
-          function addTarget(url, label, reuseId){
+          function addTarget(url, label, reuseId) {
             if (!url || seenMap[url]) return;
             seenMap[url] = true;
             targets.push({ url: url, label: label, reuseTabId: reuseId });
           }
 
           addTarget(tab.url, shortLabel(tab.url, origin), tab.id);
-          for (var i=0; i<parsed.urls.length; i++){
+          for (var i = 0; i < parsed.urls.length; i++) {
             addTarget(parsed.urls[i], shortLabel(parsed.urls[i], origin), null);
           }
 
-          if (!targets.length){
+          if (!targets.length) {
             pushProgress("No eligible URLs to audit.", "warn");
             if (summaryText) summaryText.textContent = "No eligible URLs to audit.";
             return;
@@ -437,9 +436,9 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
           }
 
           var pages = [];
-          for (var idx=0; idx<targets.length; idx++){
+          for (var idx = 0; idx < targets.length; idx++) {
             var target = targets[idx];
-            pushProgress("Auditing " + target.label + " (" + (idx+1) + "/" + targets.length + ")…");
+            pushProgress("Auditing " + target.label + " (" + (idx + 1) + "/" + targets.length + ")…");
             var pageResult = await auditPage(target, origin);
             pages.push(pageResult);
           }
@@ -467,17 +466,18 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
   }
 
   // ---------- scoring & report assembly ----------
-  function computeAudit(dom, net){
+  function computeAudit(dom, net) {
     var CATS = {
-      geo:         { max: 35, score: 0, items: [] },
-      seo:         { max: 25, score: 0, items: [] },
-      a11y:        { max: 10, score: 0, items: [] },
-      performance: { max: 20, score: 0, items: [] },
-      infinite:    { max: 10, score: 0, items: [] }
+      geo: { max: 22, score: 0, items: [] },
+      seo: { max: 25, score: 0, items: [] },
+      answer: { max: 20, score: 0, items: [] },
+      a11y: { max: 20, score: 0, items: [] },
+      performance: { max: 35, score: 0, items: [] },
+      infinite: { max: 10, score: 0, items: [] }
     };
 
     var recommendations = [];
-    function pushRecommendation(category, severity, text){
+    function pushRecommendation(category, severity, text) {
       if (!text) return;
       recommendations.push({
         category: category || "general",
@@ -486,7 +486,7 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
       });
     }
 
-    function addCat(cat, weight, ok, text, recommendationText, detail, severity){
+    function addCat(cat, weight, ok, text, recommendationText, detail, severity) {
       var sev = severity || "medium";
       var state = ok ? "ok" : (sev === "high" ? "bad" : "warn");
       CATS[cat].items.push({
@@ -504,58 +504,58 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
     }
 
     // GEO / LLM readiness signals
-    var aiBots = get(net, ["robots","bots"], {});
-    var sitemapExists = get(net,["sitemap","exists"],false)===true;
+    var aiBots = get(net, ["robots", "bots"], {});
+    var sitemapExists = get(net, ["sitemap", "exists"], false) === true;
     var sitemapDetail = sitemapExists ?
       "robots.txt references a sitemap or /sitemap.xml responded." :
       "No sitemap reference found in robots.txt and /sitemap.xml was unreachable.";
     addCat("seo", 6, sitemapExists, "Sitemap discoverable", "Expose /sitemap.xml (and reference it in robots.txt).", sitemapDetail, sitemapExists ? "low" : "high");
 
-    var aiTxtOk   = get(net,["aiTxt","exists"],false)===true;
-    var aiTxtStatus = get(net,["aiTxt","status"],0);
-    var aiTxtUrl    = get(net,["aiTxt","url"],"");
-    var aiTxtCt     = get(net,["aiTxt","ct"],"");
+    var aiTxtOk = get(net, ["aiTxt", "exists"], false) === true;
+    var aiTxtStatus = get(net, ["aiTxt", "status"], 0);
+    var aiTxtUrl = get(net, ["aiTxt", "url"], "");
+    var aiTxtCt = get(net, ["aiTxt", "ct"], "");
     var aiTxtDetail = aiTxtOk ?
-      "Detected plain-text ai.txt at " + (aiTxtUrl || "/ai.txt") + (aiTxtCt ? " (" + aiTxtCt + ")" : "") + "." :
-      "Response status " + aiTxtStatus + " or non-text content prevented detecting /ai.txt.";
-    addCat("geo", 8, aiTxtOk, aiTxtOk ? "ai.txt present" : "ai.txt missing", "Publish /ai.txt to declare how AI/LLM tools may use your content.", aiTxtDetail, aiTxtOk ? "low" : "high");
+      "Detected plain-text ai.txt at " + (aiTxtUrl || "/ai.txt") + (aiTxtCt ? " (" + aiTxtCt + ")" : "") + ". (Informational only—does not affect score.)" :
+      "Response status " + aiTxtStatus + " or non-text content prevented detecting /ai.txt. (Informational only—does not affect score.)";
+    addCat("geo", 0, aiTxtOk, aiTxtOk ? "ai.txt present" : "ai.txt missing", "Publish /ai.txt to declare how AI/LLM tools may use your content.", aiTxtDetail, aiTxtOk ? "low" : "high");
 
-    var llmsTxtOk = get(net,["llmsTxt","exists"],false)===true;
-    var llmsStatus = get(net,["llmsTxt","status"],0);
-    var llmsUrl    = get(net,["llmsTxt","url"],"");
-    var llmsCt     = get(net,["llmsTxt","ct"],"");
+    var llmsTxtOk = get(net, ["llmsTxt", "exists"], false) === true;
+    var llmsStatus = get(net, ["llmsTxt", "status"], 0);
+    var llmsUrl = get(net, ["llmsTxt", "url"], "");
+    var llmsCt = get(net, ["llmsTxt", "ct"], "");
     var llmsDetail = llmsTxtOk ?
-      "Detected plain-text llms.txt at " + (llmsUrl || "/llms.txt") + (llmsCt ? " (" + llmsCt + ")" : "") + "." :
-      "Response status " + llmsStatus + " or non-text content prevented detecting /llms.txt.";
-    addCat("geo", 5, llmsTxtOk, llmsTxtOk ? "llms.txt present" : "llms.txt missing", "Expose /llms.txt if you want to advertise AI licensing terms.", llmsDetail, llmsTxtOk ? "low" : "medium");
+      "Detected plain-text llms.txt at " + (llmsUrl || "/llms.txt") + (llmsCt ? " (" + llmsCt + ")" : "") + ". (Informational only—does not affect score.)" :
+      "Response status " + llmsStatus + " or non-text content prevented detecting /llms.txt. (Informational only—does not affect score.)";
+    addCat("geo", 0, llmsTxtOk, llmsTxtOk ? "llms.txt present" : "llms.txt missing", "Expose /llms.txt if you want to advertise AI licensing terms.", llmsDetail, llmsTxtOk ? "low" : "medium");
 
-    function botDetail(botName, allowed){
+    function botDetail(botName, allowed) {
       return allowed ?
         botName + " is not disallowed in robots.txt." :
         botName + " is disallowed via robots.txt directives.";
     }
 
-    var gptAllowed = get(aiBots,["GPTBot","allowed"],true)!==false;
+    var gptAllowed = get(aiBots, ["GPTBot", "allowed"], true) !== false;
     addCat("geo", 8, gptAllowed, "GPTBot not blocked", "Remove Disallow: / for GPTBot in robots.txt to enable GPT ingestion.", botDetail("GPTBot", gptAllowed), gptAllowed ? "low" : "high");
 
-    var ccAllowed = get(aiBots,["CCBot","allowed"],true)!==false;
+    var ccAllowed = get(aiBots, ["CCBot", "allowed"], true) !== false;
     addCat("geo", 6, ccAllowed, "CommonCrawl (CCBot) not blocked", "Allow CCBot unless you intend to block model training datasets.", botDetail("CCBot", ccAllowed), ccAllowed ? "low" : "high");
 
-    var claudeAllowed = get(aiBots,["ClaudeBot","allowed"],true)!==false;
+    var claudeAllowed = get(aiBots, ["ClaudeBot", "allowed"], true) !== false;
     addCat("geo", 4, claudeAllowed, "ClaudeBot not blocked", "Allow ClaudeBot if you want Anthropic models to use your site.", botDetail("ClaudeBot", claudeAllowed), claudeAllowed ? "low" : "medium");
 
-    var perplexityAllowed = get(aiBots,["PerplexityBot","allowed"],true)!==false;
+    var perplexityAllowed = get(aiBots, ["PerplexityBot", "allowed"], true) !== false;
     addCat("geo", 2, perplexityAllowed, "PerplexityBot not blocked", "Allow PerplexityBot unless blocking is intentional.", botDetail("PerplexityBot", perplexityAllowed), perplexityAllowed ? "low" : "medium");
 
-    var googleExtAllowed = get(aiBots,["Google-Extended","allowed"],true)!==false;
+    var googleExtAllowed = get(aiBots, ["Google-Extended", "allowed"], true) !== false;
     addCat("geo", 2, googleExtAllowed, "Google-Extended not blocked", "Allow Google-Extended so Google can use your content for generative experiences.", botDetail("Google-Extended", googleExtAllowed), googleExtAllowed ? "low" : "medium");
 
-    var xRobots    = String(get(net,["headers","xRobotsTag"],"")).toLowerCase();
-    var metaRobots = String(get(dom,["metaRobots"],"")).toLowerCase();
-    var indexAllowed = !(xRobots.indexOf("noindex")>=0 || metaRobots.indexOf("noindex")>=0);
-    var aiUseAllowed = !(xRobots.indexOf("noai")>=0 || metaRobots.indexOf("noai")>=0);
+    var xRobots = String(get(net, ["headers", "xRobotsTag"], "")).toLowerCase();
+    var metaRobots = String(get(dom, ["metaRobots"], "")).toLowerCase();
+    var indexAllowed = !(xRobots.indexOf("noindex") >= 0 || metaRobots.indexOf("noindex") >= 0);
+    var aiUseAllowed = !(xRobots.indexOf("noai") >= 0 || metaRobots.indexOf("noai") >= 0);
 
-    function directiveDetail(ok, directive, sourceHeader, sourceMeta){
+    function directiveDetail(ok, directive, sourceHeader, sourceMeta) {
       if (ok) return "No " + directive + " directive detected in meta or headers.";
       var sources = [];
       if (sourceHeader) sources.push("X-Robots-Tag header");
@@ -564,45 +564,84 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
       return directive + " directive found in " + sources.join(" and ") + ".";
     }
 
-    var indexDetail = directiveDetail(indexAllowed, "noindex", xRobots.indexOf("noindex")>=0, metaRobots.indexOf("noindex")>=0);
+    var indexDetail = directiveDetail(indexAllowed, "noindex", xRobots.indexOf("noindex") >= 0, metaRobots.indexOf("noindex") >= 0);
     addCat("seo", 6, indexAllowed, "Indexing allowed", "Remove noindex directives so search engines can index the page.", indexDetail, indexAllowed ? "low" : "high");
 
-    var aiDetail = directiveDetail(aiUseAllowed, "noai", xRobots.indexOf("noai")>=0, metaRobots.indexOf("noai")>=0);
+    var aiDetail = directiveDetail(aiUseAllowed, "noai", xRobots.indexOf("noai") >= 0, metaRobots.indexOf("noai") >= 0);
     addCat("geo", 0, aiUseAllowed, aiUseAllowed ? "AI use allowed" : "AI use blocked via noai", "Remove noai directives if AI access is intended.", aiDetail, aiUseAllowed ? "low" : "high");
     var geoPenalty = aiUseAllowed ? 0 : 6;
 
-    var jsonLdCount = get(dom,["jsonLdCount"],0)||0;
-    addCat("seo", 5, jsonLdCount>0, "JSON-LD present", "Add schema.org JSON-LD (WebSite/Article/FAQ/etc).", jsonLdCount>0 ? jsonLdCount + " JSON-LD script tag(s) found." : "No JSON-LD script tags detected.", jsonLdCount>0 ? "low" : "medium");
+    var jsonLdCount = get(dom, ["jsonLdCount"], 0) || 0;
+    addCat("seo", 5, jsonLdCount > 0, "JSON-LD present", "Add schema.org JSON-LD (WebSite/Article/FAQ/etc).", jsonLdCount > 0 ? jsonLdCount + " JSON-LD script tag(s) found." : "No JSON-LD script tags detected.", jsonLdCount > 0 ? "low" : "medium");
 
-    var canonicalHref = get(dom,["canonical"],"");
+    var canonicalHref = get(dom, ["canonical"], "");
     addCat("seo", 3, !!canonicalHref, "Canonical present", "Add <link rel=\"canonical\"> to highlight the preferred URL.", canonicalHref ? "Canonical URL: " + canonicalHref : "No canonical link element detected.", canonicalHref ? "low" : "medium");
 
-    var titleOkVal = !!get(dom,["titleOk"],false);
-    var titleLength = Number(get(dom,["titleLength"],0)||0);
+    var titleOkVal = !!get(dom, ["titleOk"], false);
+    var titleLength = Number(get(dom, ["titleLength"], 0) || 0);
     addCat("seo", 3, titleOkVal, "Title length OK (10–70)", "Craft a concise, descriptive <title> between 10–70 characters.", titleLength ? "Title length: " + titleLength + " characters." : "Title missing or empty.", titleOkVal ? "low" : "medium");
 
-    var metaDescOkVal = !!get(dom,["metaDescOk"],false);
-    var metaDescLength = Number(get(dom,["metaDescriptionLength"],0)||0);
+    var metaDescOkVal = !!get(dom, ["metaDescOk"], false);
+    var metaDescLength = Number(get(dom, ["metaDescriptionLength"], 0) || 0);
     addCat("seo", 2, metaDescOkVal, "Meta description OK (50–160)", "Write a meta description between 50–160 characters.", metaDescLength ? "Meta description length: " + metaDescLength + " characters." : "Meta description missing or empty.", metaDescOkVal ? "low" : "medium");
 
+    // Answer engine optimization
+    var answerSignals = get(dom, ["answer"], {}) || {};
+    var faqSchemaOk = !!(get(answerSignals, ["faqSchema"], false) || get(answerSignals, ["qaSchema"], false) || (Number(get(answerSignals, ["faqMicrodataCount"], 0)) || 0) > 0);
+    var faqDetailParts = [];
+    if (get(answerSignals, ["faqSchema"], false)) faqDetailParts.push("FAQPage JSON-LD");
+    if (get(answerSignals, ["qaSchema"], false)) faqDetailParts.push("QAPage JSON-LD");
+    var faqMicroCount = Number(get(answerSignals, ["faqMicrodataCount"], 0)) || 0;
+    if (faqMicroCount > 0) faqDetailParts.push(faqMicrodataCount + " FAQ microdata node(s)");
+    var faqDetail = faqSchemaOk ? "Detected " + faqDetailParts.join(", ") + "." : "No FAQ/Q&A structured data detected in JSON-LD or microdata.";
+    addCat("answer", 6, faqSchemaOk, faqSchemaOk ? "FAQ/Q&A structured data present" : "FAQ/Q&A structured data missing", "Add schema.org FAQPage or QAPage markup to feed answer engines.", faqDetail, faqSchemaOk ? "low" : "high");
+
+    var howToOk = !!get(answerSignals, ["howToSchema"], false);
+    var howToDetail = howToOk ? "HowTo schema detected in JSON-LD." : "No HowTo structured data detected.";
+    addCat("answer", 4, howToOk, howToOk ? "HowTo schema present" : "HowTo schema missing", "Publish HowTo structured data for step-by-step content.", howToDetail, howToOk ? "low" : "medium");
+
+    var speakableOk = !!get(answerSignals, ["speakableSchema"], false);
+    var speakableDetail = speakableOk ? "SpeakableSpecification or speakable property detected." : "No speakable markup found.";
+    addCat("answer", 2, speakableOk, speakableOk ? "Speakable markup present" : "Speakable markup missing", "Add speakable markup so assistants can quote summaries.", speakableDetail, speakableOk ? "low" : "medium");
+
+    var faqAccordionCount = Number(get(answerSignals, ["faqAccordionCount"], 0)) || 0;
+    var questionHeadingCount = Number(get(answerSignals, ["questionHeadingCount"], 0)) || 0;
+    var faqModulesOk = (faqAccordionCount + questionHeadingCount) > 0;
+    var faqModuleDetail = faqModulesOk ? faqAccordionCount + " accordion(s) and " + questionHeadingCount + " question heading(s) detected." : "No obvious FAQ accordion or question-style headings detected.";
+    addCat("answer", 3, faqModulesOk, faqModulesOk ? "FAQ/Q&A modules detected" : "FAQ/Q&A modules missing", "Expose question-and-answer sections that map to user queries.", faqModuleDetail, faqModulesOk ? "low" : "medium");
+
+    var summaryListCount = Number(get(answerSignals, ["keyTakeawayLists"], 0)) || 0;
+    var hasSummaryList = !!get(answerSignals, ["hasSummaryList"], false);
+    var tocDetected = !!get(answerSignals, ["hasTableOfContents"], false);
+    var summaryDetailParts = [];
+    summaryDetailParts.push(summaryListCount + " takeaway list(s)");
+    summaryDetailParts.push(tocDetected ? "table of contents links detected" : "no table of contents links");
+    var summaryDetail = "Summary signals: " + summaryDetailParts.join(", ") + ".";
+    addCat("answer", 3, hasSummaryList || tocDetected, (hasSummaryList || tocDetected) ? "Summaries or TOC detected" : "No summaries/TOC detected", "Add a key takeaways list or table of contents near the top of the page.", summaryDetail, (hasSummaryList || tocDetected) ? "low" : "medium");
+
+    var authorityCount = Number(get(dom, ["geo", "citationAuthorityCount"], 0)) || 0;
+    var authorityOk = authorityCount > 0;
+    var authorityDetail = authorityOk ? "Detected " + authorityCount + " authoritative outbound citation(s)." : "No .gov/.edu or research-style citations detected.";
+    addCat("answer", 2, authorityOk, authorityOk ? "Authoritative citations present" : "Authoritative citations missing", "Link to authoritative sources to boost answer credibility.", authorityDetail, authorityOk ? "low" : "medium");
+
     // A11y
-    var h1Total = get(dom,["h1Count"],0)||0;
-    addCat("a11y", 3, h1Total===1, "Single <h1> present", "Ensure exactly one <h1> summarizes the page.", "Detected " + h1Total + " <h1> element(s).", h1Total===1 ? "low" : "medium");
+    var h1Total = get(dom, ["h1Count"], 0) || 0;
+    addCat("a11y", 6, h1Total === 1, "Single <h1> present", "Ensure exactly one <h1> summarizes the page.", "Detected " + h1Total + " <h1> element(s).", h1Total === 1 ? "low" : "medium");
 
-    var imagesMissingAlt = get(dom,["imgWithoutAlt"],0)||0;
-    addCat("a11y", 3, imagesMissingAlt===0, "Images have alt", "Add meaningful alt text for informative images.", imagesMissingAlt===0 ? "All images include alt text." : imagesMissingAlt + " image(s) missing alt text.", imagesMissingAlt===0 ? "low" : "medium");
+    var imagesMissingAlt = get(dom, ["imgWithoutAlt"], 0) || 0;
+    addCat("a11y", 6, imagesMissingAlt === 0, "Images have alt", "Add meaningful alt text for informative images.", imagesMissingAlt === 0 ? "All images include alt text." : imagesMissingAlt + " image(s) missing alt text.", imagesMissingAlt === 0 ? "low" : "medium");
 
-    var langSet = !!get(dom,["langOk"],false);
-    var htmlLangVal = get(dom,["htmlLang"],"");
-    addCat("a11y", 2, langSet, "html[lang] set", "Set <html lang=\"...\"> for assistive tech.", langSet ? "html[lang] is set to '" + htmlLangVal + "'." : "html[lang] attribute not present.", langSet ? "low" : "medium");
+    var langSet = !!get(dom, ["langOk"], false);
+    var htmlLangVal = get(dom, ["htmlLang"], "");
+    addCat("a11y", 4, langSet, "html[lang] set", "Set <html lang=\"...\"> for assistive tech.", langSet ? "html[lang] is set to '" + htmlLangVal + "'." : "html[lang] attribute not present.", langSet ? "low" : "medium");
 
-    var wordCount = get(dom,["mainWordCount"],0)||0;
-    addCat("a11y", 2, wordCount>=300, "Substantive text (>=300 words)", "Add at least 300 words of meaningful copy in the main region.", "Estimated main content word count: " + wordCount + ".", wordCount>=300 ? "low" : "medium");
+    var wordCount = get(dom, ["mainWordCount"], 0) || 0;
+    addCat("a11y", 4, wordCount >= 300, "Substantive text (>=300 words)", "Add at least 300 words of meaningful copy in the main region.", "Estimated main content word count: " + wordCount + ".", wordCount >= 300 ? "low" : "medium");
 
     // Performance (Lighthouse curves + heuristics)
-    var lcp = get(dom,["perf","lcp"],null);
-    var cls = get(dom,["perf","cls"],null);
-    var inp = get(dom,["perf","inp"],null);
+    var lcp = get(dom, ["perf", "lcp"], null);
+    var cls = get(dom, ["perf", "cls"], null);
+    var inp = get(dom, ["perf", "inp"], null);
     var lighthousePerf = scoreWebVitals({ lcp: lcp, cls: cls, inp: inp });
     var lighthouseMetrics = lighthousePerf && lighthousePerf.metrics ? lighthousePerf.metrics : {};
     var lighthousePoints = { lcp: 10, cls: 4, inp: 6 };
@@ -666,42 +705,46 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
       if (overallState !== "ok" && overallFix) pushRecommendation("performance", overallState === "bad" ? "high" : "medium", overallFix);
     }
 
-    var enc = String(get(net,["root","headers","content-encoding"],"")).toLowerCase();
-    var compressed = enc.indexOf("br")>=0 || enc.indexOf("gzip")>=0 || enc.indexOf("zstd")>=0;
-    var cacheOk = /max-age=\d{3,}/i.test(String(get(net,["root","headers","cache-control"],"")));
+    var enc = String(get(net, ["root", "headers", "content-encoding"], "")).toLowerCase();
+    var compressed = enc.indexOf("br") >= 0 || enc.indexOf("gzip") >= 0 || enc.indexOf("zstd") >= 0;
+    var cacheOk = /max-age=\d{3,}/i.test(String(get(net, ["root", "headers", "cache-control"], "")));
 
     addCat("performance", 5, !!compressed, "Compression enabled (gzip/br)", "Enable Brotli/gzip (or zstd) on HTML and static assets.", compressed ? "Content-Encoding header indicates compression ('" + enc + "')." : "No compression header detected on initial response.", compressed ? "low" : "medium");
 
-    var cacheHeader = String(get(net,["root","headers","cache-control"],""));
+    var cacheHeader = String(get(net, ["root", "headers", "cache-control"], ""));
     addCat("performance", 5, !!cacheOk, "Caching headers present", "Set Cache-Control with max-age >= 1000 for cacheable assets.", cacheHeader ? "Cache-Control: " + cacheHeader : "No Cache-Control header detected.", cacheOk ? "low" : "medium");
 
-    var preconnectCount = get(dom,["resourceHints","preconnect"],0)||0;
-    addCat("performance", 3, preconnectCount>0, "Preconnect present", "Add <link rel=\"preconnect\"> to critical third-party origins.", preconnectCount>0 ? preconnectCount + " preconnect hint(s) found." : "No preconnect hints detected.", preconnectCount>0 ? "low" : "low");
+    var preconnectCount = get(dom, ["resourceHints", "preconnect"], 0) || 0;
+    addCat("performance", 3, preconnectCount > 0, "Preconnect present", "Add <link rel=\"preconnect\"> to critical third-party origins.", preconnectCount > 0 ? preconnectCount + " preconnect hint(s) found." : "No preconnect hints detected.", preconnectCount > 0 ? "low" : "low");
 
-    var preloadCount = get(dom,["resourceHints","preload"],0)||0;
-    addCat("performance", 3, preloadCount>0, "Preload present", "Preload critical hero assets (fonts, CSS, hero media).", preloadCount>0 ? preloadCount + " preload hint(s) found." : "No preload hints detected.", preloadCount>0 ? "low" : "low");
+    var preloadCount = get(dom, ["resourceHints", "preload"], 0) || 0;
+    addCat("performance", 3, preloadCount > 0, "Preload present", "Preload critical hero assets (fonts, CSS, hero media).", preloadCount > 0 ? preloadCount + " preload hint(s) found." : "No preload hints detected.", preloadCount > 0 ? "low" : "low");
 
-    var imagesModernPct = Math.round(get(dom,["images","modernPct"],0)||0);
-    var imagesCount = get(dom,["images","count"],0)||0;
+    var imagesModernPct = Math.round(get(dom, ["images", "modernPct"], 0) || 0);
+    var imagesCount = get(dom, ["images", "count"], 0) || 0;
     var modernDetail = imagesCount ? imagesModernPct + "% of " + imagesCount + " image(s) use modern formats." : "No images detected on page.";
-    addCat("performance", 2, imagesCount === 0 || imagesModernPct>=70, "Modern images >=70% ("+imagesModernPct+"%)", "Prefer AVIF/WebP (>=70%) for imagery.", modernDetail, (imagesCount === 0 || imagesModernPct>=70) ? "low" : "medium");
+    addCat("performance", 2, imagesCount === 0 || imagesModernPct >= 70, "Modern images >=70% (" + imagesModernPct + "%)", "Prefer AVIF/WebP (>=70%) for imagery and use the <picture> element.", modernDetail, (imagesCount === 0 || imagesModernPct >= 70) ? "low" : "medium");
 
-    var imagesLazyPct = Math.round(get(dom,["images","lazyPct"],0)||0);
+    var imagesResponsivePct = Math.round(get(dom, ["images", "responsivePct"], 0) || 0); // NEW
+    var responsiveDetail = imagesCount ? imagesResponsivePct + "% of " + imagesCount + " image(s) are responsive (srcset/picture)." : "No images detected on page.";
+    addCat("performance", 2, imagesCount === 0 || imagesResponsivePct >= 70, "Responsive images >=70% (" + imagesResponsivePct + "%)", "Use srcset/sizes or the <picture> element to serve responsive images.", responsiveDetail, (imagesCount === 0 || imagesResponsivePct >= 70) ? "low" : "medium");
+
+    var imagesLazyPct = Math.round(get(dom, ["images", "lazyPct"], 0) || 0);
     var lazyDetail = imagesCount ? imagesLazyPct + "% of " + imagesCount + " image(s) use loading=\"lazy\"." : "No images detected on page.";
-    addCat("performance", 1, imagesCount === 0 || imagesLazyPct>=70, "Lazy-loaded images >=70% ("+imagesLazyPct+"%)", "Add loading=\"lazy\" to non-critical images below the fold.", lazyDetail, (imagesCount === 0 || imagesLazyPct>=70) ? "low" : "low");
+    addCat("performance", 1, imagesCount === 0 || imagesLazyPct >= 70, "Lazy-loaded images >=70% (" + imagesLazyPct + "%)", "Add loading=\"lazy\" to non-critical images below the fold.", lazyDetail, (imagesCount === 0 || imagesLazyPct >= 70) ? "low" : "low");
 
-    var fontsDisplay = !!get(dom,["fonts","haveDisplay"],false);
+    var fontsDisplay = !!get(dom, ["fonts", "haveDisplay"], false);
     addCat("performance", 1, fontsDisplay, "Fonts use font-display", "Add font-display: swap/optional to custom fonts.", fontsDisplay ? "font-display detected in inline styles." : "No font-display declaration found in detected stylesheets.", fontsDisplay ? "low" : "low");
 
     // Infinite scroll / crawlable pagination
-    var hasPaginationLinks  = ((get(dom,["pagination","links"],[])||[]).length)>0;
-    var infiniteObserved    = !!get(dom,["infinite","appendedOnScroll"],false);
-    var pageFetchOK         = !!get(net,["paginationFetch","ok"],false);
-    var paginationVisible   = !!get(dom,["pagination","visible"],false);
-    var relNextPrevFound    = !!get(dom,["pagination","relNextPrev"],false);
+    var hasPaginationLinks = ((get(dom, ["pagination", "links"], []) || []).length) > 0;
+    var infiniteObserved = !!get(dom, ["infinite", "appendedOnScroll"], false);
+    var pageFetchOK = !!get(net, ["paginationFetch", "ok"], false);
+    var paginationVisible = !!get(dom, ["pagination", "visible"], false);
+    var relNextPrevFound = !!get(dom, ["pagination", "relNextPrev"], false);
 
     var infinitePatternOK = hasPaginationLinks && (!infiniteObserved || pageFetchOK);
-    var paginationLinksCount = (get(dom,["pagination","links"],[])||[]).length;
+    var paginationLinksCount = (get(dom, ["pagination", "links"], []) || []).length;
     var infiniteMissing = [];
     if (!hasPaginationLinks) infiniteMissing.push("pagination links");
     if (infiniteObserved && !pageFetchOK) infiniteMissing.push("page fetch success");
@@ -724,21 +767,21 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
       CATS.geo.score = Math.max(0, CATS.geo.score - geoPenalty);
     }
 
-    Object.keys(CATS).forEach(function(catName){
+    Object.keys(CATS).forEach(function (catName) {
       if (CATS[catName].score < 0) CATS[catName].score = 0;
       if (CATS[catName].score > CATS[catName].max) CATS[catName].score = CATS[catName].max;
     });
 
-    var overallMax=0, got=0;
-    Object.keys(CATS).forEach(function(k){ overallMax+=CATS[k].max; got+=CATS[k].score; });
-    var overallPct = overallMax ? Math.round((got/overallMax)*100) : 0;
+    var overallMax = 0, got = 0;
+    Object.keys(CATS).forEach(function (k) { overallMax += CATS[k].max; got += CATS[k].score; });
+    var overallPct = overallMax ? Math.round((got / overallMax) * 100) : 0;
 
     // Key checks (top 12)
     var keyChecks = [];
-    Object.keys(CATS).forEach(function(id){
-      CATS[id].items.forEach(function(i){ keyChecks.push({ cat:id, state:i.state, text:i.text }); });
+    Object.keys(CATS).forEach(function (id) {
+      CATS[id].items.forEach(function (i) { keyChecks.push({ cat: id, state: i.state, text: i.text }); });
     });
-    keyChecks = keyChecks.slice(0,12);
+    keyChecks = keyChecks.slice(0, 12);
 
     var lighthouseStore = {
       source: lighthousePerf && lighthousePerf.source ? lighthousePerf.source : "",
@@ -768,14 +811,15 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
     }
 
     return {
-      meta: { url: get(dom,["url"],"") || (get(net,["url"],"") || "") },
+      meta: { url: get(dom, ["url"], "") || (get(net, ["url"], "") || "") },
       overall: { score: overallPct, grade: gradeFromScore(overallPct) },
       categories: {
-        geo:         { score: pct(CATS.geo.score,CATS.geo.max), items: CATS.geo.items },
-        seo:         { score: pct(CATS.seo.score,CATS.seo.max), items: CATS.seo.items },
-        a11y:        { score: pct(CATS.a11y.score,CATS.a11y.max), items: CATS.a11y.items },
-        performance: { score: pct(CATS.performance.score,CATS.performance.max), items: CATS.performance.items },
-        infinite:    { score: pct(CATS.infinite.score,CATS.infinite.max), items: CATS.infinite.items }
+        geo: { score: pct(CATS.geo.score, CATS.geo.max), items: CATS.geo.items },
+        seo: { score: pct(CATS.seo.score, CATS.seo.max), items: CATS.seo.items },
+        answer: { score: pct(CATS.answer.score, CATS.answer.max), items: CATS.answer.items },
+        a11y: { score: pct(CATS.a11y.score, CATS.a11y.max), items: CATS.a11y.items },
+        performance: { score: pct(CATS.performance.score, CATS.performance.max), items: CATS.performance.items },
+        infinite: { score: pct(CATS.infinite.score, CATS.infinite.max), items: CATS.infinite.items }
       },
       keyChecks: keyChecks,
       recommendations: recommendations,
@@ -785,7 +829,7 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
     };
   }
 
-  async function auditPage(target, origin){
+  async function auditPage(target, origin) {
     var url = target && target.url ? target.url : "";
     var label = target && target.label ? target.label : shortLabel(url, origin);
     var reuseTabId = target && target.reuseTabId ? target.reuseTabId : null;
@@ -832,7 +876,7 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
         pushProgress("Unable to capture DOM for " + label + ".", "warn");
       } finally {
         if (createdTabId) {
-          try { await chrome.tabs.remove(createdTabId); } catch (removeErr) {}
+          try { await chrome.tabs.remove(createdTabId); } catch (removeErr) { }
         }
       }
     }
@@ -846,7 +890,7 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
       try {
         var rawLinks = get(domInfo, ["pagination", "links"], []);
         if (Array.isArray(rawLinks) && rawLinks.length) {
-          paginationLinksForNet = rawLinks.filter(function(link){ return typeof link === "string" && link.trim(); });
+          paginationLinksForNet = rawLinks.filter(function (link) { return typeof link === "string" && link.trim(); });
         }
       } catch (linkErr) { /* ignore and fall back to empty list */ }
 
@@ -866,14 +910,14 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
   }
 
   // ---------- render ----------
-  function render(result){
+  function render(result) {
     scoreEl.textContent = result.overall.score;
     gradeEl.textContent = result.overall.grade;
 
     var summaryLine =
       result.overall.score >= 90 ? "Excellent overall readiness." :
-      result.overall.score >= 75 ? "Good foundation—fix the top warnings." :
-                                   "Multiple issues detected. Tackle the top recommendations first.";
+        result.overall.score >= 75 ? "Good foundation—fix the top warnings." :
+          "Multiple issues detected. Tackle the top recommendations first.";
     var multi = result.meta && result.meta.multi ? result.meta.multi : null;
     if (multi && multi.count > 1) {
       summaryLine = multi.count + " pages scanned. " + summaryLine;
@@ -887,7 +931,7 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
       pageSummaries.innerHTML = "";
       if (multi && multi.pages && multi.pages.length) {
         pageSummaries.style.display = "block";
-        for (var ps=0; ps<multi.pages.length; ps++){
+        for (var ps = 0; ps < multi.pages.length; ps++) {
           var entry = multi.pages[ps];
           if (!entry) continue;
           var pageResult = entry.result || {};
@@ -908,19 +952,21 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
 
     catsEl.innerHTML = "";
     var names = CATEGORY_ORDER.slice();
-    for (var i=0;i<names.length;i++){
+    for (var i = 0; i < names.length; i++) {
       var name = names[i];
       var cat = result.categories[name];
       if (!cat) continue;
       var li = document.createElement("li");
-      var title = name === "geo" ? "GEO / LLM" : (name === "a11y" ? "Accessibility" : name.charAt(0).toUpperCase() + name.slice(1));
+      var title = name === "geo" ? "GEO / LLM" :
+        (name === "answer" ? "Answer Engine" :
+          (name === "a11y" ? "Accessibility" : name.charAt(0).toUpperCase() + name.slice(1)));
       li.textContent = title + ": " + cat.score + "/100";
       catsEl.appendChild(li);
     }
 
     checklist.innerHTML = "";
     var kc = result.keyChecks || [];
-    for (var j=0;j<kc.length;j++){
+    for (var j = 0; j < kc.length; j++) {
       var c = kc[j];
       var li2 = document.createElement("li");
       li2.textContent = "[" + c.cat + "] " + c.text;
@@ -937,12 +983,12 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
         emptyLi.textContent = "No recommendations.";
         recommendationsEl.appendChild(emptyLi);
       } else {
-        recs.sort(function(a, b){
+        recs.sort(function (a, b) {
           var diff = recommendationSeverityValue(b.severity) - recommendationSeverityValue(a.severity);
           if (diff !== 0) return diff;
           return (a.text || "").localeCompare(b.text || "");
         });
-        for (var k=0;k<recs.length;k++){
+        for (var k = 0; k < recs.length; k++) {
           var rec = recs[k];
           var li3 = document.createElement("li");
           var sev = rec && rec.severity ? rec.severity.toLowerCase() : "medium";

@@ -4,7 +4,7 @@ export function $(id) {
   return document.getElementById(id);
 }
 
-export function cardEl(title, score, items) {
+export function cardEl(title, score, items, helperText) {
   var div = document.createElement("div");
   div.className = "card";
   var listHtml = "";
@@ -32,6 +32,7 @@ export function cardEl(title, score, items) {
   div.innerHTML =
     '<h2>' + escapeHtml(title) + '</h2>' +
     '<div class="score">' + (score != null ? score : "—") + ' (' + gradeLabel + ')</div>' +
+    (helperText ? '<div class="muted small">' + escapeHtml(helperText) + '</div>' : "") +
     listHtml;
   return div;
 }
