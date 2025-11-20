@@ -1,73 +1,75 @@
-function q(sel){return document.querySelector(sel)}
-function qa(sel){return Array.from(document.querySelectorAll(sel))}
-function getMeta(name){return q(`meta[name="${name}"]`)?.getAttribute('content')||''}
-function getHeader(name){return q(`meta[http-equiv="${name}"]`)?.getAttribute('content')||''}
-function metaRobots(){ const v = (getMeta('robots') || getHeader('X-Robots-Tag') || '').toLowerCase(); return v; }
-function pageTitle(){ return (document.title || '').trim(); }
-function metaDescription(){ return (getMeta('description') || '').trim(); }
-function countJsonLd(){ return qa('script[type="application/ld+json"]').length }
-function ogCount(){ return qa('meta[property^="og:"]').length }
-function twitterCount(){ return qa('meta[name^="twitter:"]').length }
-function titleOk(){ const t = (document.title || '').trim(); return t.length >= 10 && t.length <= 70; }
-function metaDescOk(){ const d = getMeta('description') || ''; const len = d.trim().length; return len >= 50 && len <= 160; }
-function h1Count(){ return qa('h1').length }
-function imgWithoutAlt(){ return qa('img').filter(img => !(img.getAttribute('alt')||'').trim()).length }
-function langOk(){ return !!(document.documentElement.getAttribute('lang')||'').trim() }
-function htmlLang(){ return (document.documentElement.getAttribute('lang')||'').trim(); }
-function canonical(){ return q('link[rel="canonical"]')?.href || '' }
-function mainWordCount(){ const clone = document.body.cloneNode(true); clone.querySelectorAll('script,style,nav,footer,header,form,aside').forEach(n=>n.remove()); const text=(clone.innerText||'').replace(/\s+/g,' ').trim(); return text.split(' ').filter(Boolean).length; }
-const GEO_STOPWORDS = new Set(['the','be','to','of','and','a','in','that','have','i','it','for','not','on','with','he','as','you','do','at','this','but','his','by','from','they','we','say','her','she','or','an','will','my','one','all','would','there','their','is','are','was','were','had','has','were','your','can','our','more','about']);
-function countSyllables(word){
+// content.js — DOM information collector
+
+function q(sel) { return document.querySelector(sel) }
+function qa(sel) { return Array.from(document.querySelectorAll(sel)) }
+function getMeta(name) { return q(`meta[name="${name}"]`)?.getAttribute('content') || '' }
+function getHeader(name) { return q(`meta[http-equiv="${name}"]`)?.getAttribute('content') || '' }
+function metaRobots() { const v = (getMeta('robots') || getHeader('X-Robots-Tag') || '').toLowerCase(); return v; }
+function pageTitle() { return (document.title || '').trim(); }
+function metaDescription() { return (getMeta('description') || '').trim(); }
+function countJsonLd() { return qa('script[type="application/ld+json"]').length }
+function ogCount() { return qa('meta[property^="og:"]').length }
+function twitterCount() { return qa('meta[name^="twitter:"]').length }
+function titleOk() { const t = (document.title || '').trim(); return t.length >= 10 && t.length <= 70; }
+function metaDescOk() { const d = getMeta('description') || ''; const len = d.trim().length; return len >= 50 && len <= 160; }
+function h1Count() { return qa('h1').length }
+function imgWithoutAlt() { return qa('img').filter(img => !(img.getAttribute('alt') || '').trim()).length }
+function langOk() { return !!(document.documentElement.getAttribute('lang') || '').trim() }
+function htmlLang() { return (document.documentElement.getAttribute('lang') || '').trim(); }
+function canonical() { return q('link[rel="canonical"]')?.href || '' }
+function mainWordCount() { const clone = document.body.cloneNode(true); clone.querySelectorAll('script,style,nav,footer,header,form,aside').forEach(n => n.remove()); const text = (clone.innerText || '').replace(/\s+/g, ' ').trim(); return text.split(' ').filter(Boolean).length; }
+const GEO_STOPWORDS = new Set(['the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'i', 'it', 'for', 'not', 'on', 'with', 'he', 'as', 'you', 'do', 'at', 'this', 'but', 'his', 'by', 'from', 'they', 'we', 'say', 'her', 'she', 'or', 'an', 'will', 'my', 'one', 'all', 'would', 'there', 'their', 'is', 'are', 'was', 'were', 'had', 'has', 'were', 'your', 'can', 'our', 'more', 'about']);
+function countSyllables(word) {
   try {
-    var w = (word||'').toLowerCase().replace(/[^a-z\u00c0-\u017f]/g,'');
+    var w = (word || '').toLowerCase().replace(/[^a-z\u00c0-\u017f]/g, '');
     if (!w) return 0;
     if (w.length <= 3) return 1;
     w = w.replace(/(?:[^laeiouy]es|ed|[^laeiouy]e)$/, '');
     w = w.replace(/^y/, '');
     var matches = w.match(/[aeiouy]{1,2}/g);
     return matches ? matches.length : 1;
-  } catch(e){ return 0; }
+  } catch (e) { return 0; }
 }
-function analyzeGeoContent(){
+function analyzeGeoContent() {
   try {
     const clone = document.body.cloneNode(true);
-    clone.querySelectorAll('script,style,noscript,svg,canvas,nav,footer,header,form,aside').forEach(n=>n.remove());
-    const text = (clone.innerText||'').replace(/\s+/g,' ').trim();
+    clone.querySelectorAll('script,style,noscript,svg,canvas,nav,footer,header,form,aside').forEach(n => n.remove());
+    const text = (clone.innerText || '').replace(/\s+/g, ' ').trim();
     const wordsOriginal = (text.match(/[A-Za-z\u00C0-\u017F']+/g) || []);
-    const words = wordsOriginal.map(w=>w.toLowerCase().replace(/'/g,''));
+    const words = wordsOriginal.map(w => w.toLowerCase().replace(/'/g, ''));
     const wordsFiltered = words.filter(Boolean);
     const totalWords = wordsFiltered.length;
     const uniqueWordCount = Array.from(new Set(wordsFiltered)).length;
-    const uniqueWordRatio = totalWords ? uniqueWordCount/totalWords : 0;
+    const uniqueWordRatio = totalWords ? uniqueWordCount / totalWords : 0;
 
     const freq = {};
     var topWord = '';
     var topCount = 0;
-    for (var i=0;i<wordsFiltered.length;i++){
+    for (var i = 0; i < wordsFiltered.length; i++) {
       var token = wordsFiltered[i];
       if (!token || GEO_STOPWORDS.has(token)) continue;
-      freq[token] = (freq[token]||0)+1;
-      if (freq[token] > topCount){
+      freq[token] = (freq[token] || 0) + 1;
+      if (freq[token] > topCount) {
         topCount = freq[token];
         topWord = token;
       }
     }
-    const topWordRatio = totalWords ? topCount/totalWords : 0;
+    const topWordRatio = totalWords ? topCount / totalWords : 0;
 
-    const sentences = text.split(/[.!?]+/).map(s=>s.trim()).filter(Boolean);
+    const sentences = text.split(/[.!?]+/).map(s => s.trim()).filter(Boolean);
     const sentenceCount = sentences.length;
     var syllableSum = 0;
-    for (var j=0;j<wordsOriginal.length;j++) syllableSum += countSyllables(wordsOriginal[j]);
+    for (var j = 0; j < wordsOriginal.length; j++) syllableSum += countSyllables(wordsOriginal[j]);
     const avgSentenceLength = sentenceCount ? (totalWords / sentenceCount) : 0;
     const syllablesPerWord = totalWords ? (syllableSum / totalWords) : 0;
     const flesch = (sentenceCount && totalWords) ? (206.835 - 1.015 * avgSentenceLength - 84.6 * syllablesPerWord) : 0;
 
-    const capitalizedSentences = sentences.filter(function(s){ return /^[A-Z0-9\u00C0-\u017F]/.test(s); }).length;
+    const capitalizedSentences = sentences.filter(function (s) { return /^[A-Z0-9\u00C0-\u017F]/.test(s); }).length;
     const capitalizedRatio = sentenceCount ? capitalizedSentences / sentenceCount : 0;
 
-    const longWords = wordsOriginal.filter(function(w){ return w.length >= 9; }).length;
-    const technicalTerms = wordsOriginal.filter(function(w){ return /(?:ization|isation|ology|metric|engine|network|algorithm|platform|compliance|optimization)$/i.test(w) || /^[A-Z]{3,}$/.test(w); }).length;
-    const technicalTermRatio = totalWords ? (technicalTerms + longWords*0.5) / totalWords : 0;
+    const longWords = wordsOriginal.filter(function (w) { return w.length >= 9; }).length;
+    const technicalTerms = wordsOriginal.filter(function (w) { return /(?:ization|isation|ology|metric|engine|network|algorithm|platform|compliance|optimization)$/i.test(w) || /^[A-Z]{3,}$/.test(w); }).length;
+    const technicalTermRatio = totalWords ? (technicalTerms + longWords * 0.5) / totalWords : 0;
 
     const doc = document;
     const headings = doc.querySelectorAll('h2, h3').length;
@@ -76,22 +78,22 @@ function analyzeGeoContent(){
     const hasEmphasis = !!doc.querySelector('strong, b, em, mark');
 
     const anchors = Array.from(doc.querySelectorAll('a[href]'));
-    const originHost = (location && location.hostname) ? location.hostname.replace(/^www\./,'') : '';
+    const originHost = (location && location.hostname) ? location.hostname.replace(/^www\./, '') : '';
     var externalLinks = [];
     var authorityLinks = [];
-    anchors.forEach(function(a){
-      var href = a.getAttribute('href')||'';
+    anchors.forEach(function (a) {
+      var href = a.getAttribute('href') || '';
       try {
         var u = new URL(href, location.href);
-        var host = (u.hostname||'').replace(/^www\./,'');
+        var host = (u.hostname || '').replace(/^www\./, '');
         var isExternal = !!originHost && host && host !== originHost;
         if (isExternal) {
           externalLinks.push(host);
-          if (/\.(gov|edu)$/i.test(host) || /(journal|research|study|report|whitepaper)/i.test(a.textContent||'')) {
+          if (/\.(gov|edu)$/i.test(host) || /(journal|research|study|report|whitepaper)/i.test(a.textContent || '')) {
             authorityLinks.push(host);
           }
         }
-      } catch(e) { /* ignore */ }
+      } catch (e) { /* ignore */ }
     });
 
     const quoteMatches = (text.match(/"[^"\n]{3,}"/g) || []).length;
@@ -120,11 +122,11 @@ function analyzeGeoContent(){
         listItems: listItems,
         hasTable: hasTable,
         hasEmphasis: hasEmphasis,
-        richFormatting: (headings>=2) || (listItems>4) || hasTable || hasEmphasis
+        richFormatting: (headings >= 2) || (listItems > 4) || hasTable || hasEmphasis
       },
       externalLinkCount: externalLinks.length,
       citationAuthorityCount: authorityLinks.length,
-      citationAuthoritySamples: authorityLinks.slice(0,3),
+      citationAuthoritySamples: authorityLinks.slice(0, 3),
       quoteCount: quoteCount,
       statsCount: statsMatches
     };
@@ -147,7 +149,7 @@ function analyzeGeoContent(){
   }
 }
 
-function extractJsonLdAnswerSignals(){
+function extractJsonLdAnswerSignals() {
   var result = {
     count: 0,
     errors: 0,
@@ -157,7 +159,7 @@ function extractJsonLdAnswerSignals(){
     speakableSchema: false,
     breadcrumbSchema: false
   };
-  function markType(type){
+  function markType(type) {
     if (!type) return;
     var t = String(type).toLowerCase();
     if (t.indexOf("faqpage") >= 0) result.faqSchema = true;
@@ -167,7 +169,7 @@ function extractJsonLdAnswerSignals(){
     if (t.indexOf("speakable") >= 0) result.speakableSchema = true;
     if (t.indexOf("breadcrumb") >= 0) result.breadcrumbSchema = true;
   }
-  function walk(node){
+  function walk(node) {
     if (!node) return;
     if (Array.isArray(node)) {
       for (var i = 0; i < node.length; i++) {
@@ -216,7 +218,7 @@ function extractJsonLdAnswerSignals(){
             var wrapped = "[" + trimmed.replace(/}\s*{/, "},{") + "]";
             var fallback = JSON.parse(wrapped);
             walk(fallback);
-          } catch (ignore) {}
+          } catch (ignore) { }
         }
       }
     }
@@ -226,7 +228,7 @@ function extractJsonLdAnswerSignals(){
   return result;
 }
 
-function detectAnswerEngineSignals(){
+function detectAnswerEngineSignals() {
   try {
     var main = document.querySelector('main, article, [role="main"]');
     if (!main) main = document.body || document.documentElement;
@@ -285,7 +287,7 @@ function detectAnswerEngineSignals(){
 
     var microdataFaq = main.querySelectorAll('[itemtype*="FAQPage"], [itemtype*="Question"], [itemtype*="HowTo"]');
 
-    var anchorLinks = Array.from(main.querySelectorAll('a[href^="#"]')).filter(function(a){
+    var anchorLinks = Array.from(main.querySelectorAll('a[href^="#"]')).filter(function (a) {
       if (!a) return false;
       var href = a.getAttribute('href') || '';
       if (!href || href === '#' || href.toLowerCase() === '#top') return false;
@@ -305,7 +307,7 @@ function detectAnswerEngineSignals(){
     }
 
     var calloutSelectors = 'aside, .callout, .summary-box, .key-points, .highlights, .important';
-    var callouts = Array.from(main.querySelectorAll(calloutSelectors)).filter(function(node){
+    var callouts = Array.from(main.querySelectorAll(calloutSelectors)).filter(function (node) {
       var text = (node.textContent || "").replace(/\s+/g, ' ').trim();
       if (!text) return false;
       return keyPhrase.test(text) || /answer|summary|takeaway|in summary|tl;dr/i.test(text);
@@ -348,11 +350,52 @@ function detectAnswerEngineSignals(){
     };
   }
 }
-function resourceHints(){ return { preconnect: qa('link[rel=\"preconnect\"]').length, preload: qa('link[rel=\"preload\"]').length, dnsPrefetch: qa('link[rel=\"dns-prefetch\"]').length }; }
-function imageStats(){ const imgs = qa('img'); const total = imgs.length || 1; const modern = imgs.filter(i => (i.src||'').match(/\.(avif|webp)(\?|$)/i)).length; const lazy = imgs.filter(i => (i.getAttribute('loading')||'').toLowerCase()==='lazy').length; return { count: imgs.length, modernPct: (modern/total)*100, lazyPct: (lazy/total)*100 }; }
-function fontStats(){ const styles = qa('style, link[rel=\"stylesheet\"]'); let haveDisplay=false; styles.forEach(s=>{ const txt = s.tagName==='STYLE' ? s.textContent : ''; if (txt && /font-display\\s*:\\s*(swap|optional)/i.test(txt)) haveDisplay = true; }); return { haveDisplay }; }
+function resourceHints() { return { preconnect: qa('link[rel=\"preconnect\"]').length, preload: qa('link[rel=\"preload\"]').length, dnsPrefetch: qa('link[rel=\"dns-prefetch\"]').length }; }
+function imageStats() {
+  const allImages = qa('img');
+  const total = allImages.length || 1;
+  let modernFormatCount = 0;
+  let lazyCount = 0;
+  let responsiveCount = 0;
 
-function normalizeMediaUrl(url){
+  allImages.forEach(img => {
+    // 1. Check for modern format by extension
+    const src = img.src || '';
+    if (src.match(/\.(avif|webp)(\?|$)/i)) {
+      modernFormatCount++;
+    }
+
+    // 2. Check for lazy loading
+    if ((img.getAttribute('loading') || '').toLowerCase() === 'lazy') {
+      lazyCount++;
+    }
+
+    // 3. Check for responsiveness signals (srcset or parent <picture>)
+    if (img.getAttribute('srcset')) {
+      responsiveCount++;
+    } else if (img.parentElement && img.parentElement.tagName.toLowerCase() === 'picture') {
+      responsiveCount++;
+    }
+    // Also count images inside <picture> with modern <source> tags
+    const parentPicture = img.parentElement;
+    if (parentPicture && parentPicture.tagName.toLowerCase() === 'picture') {
+      const sources = parentPicture.querySelectorAll('source');
+      if (Array.from(sources).some(s => (s.getAttribute('type') || '').toLowerCase().indexOf('image/webp') > -1 || (s.getAttribute('type') || '').toLowerCase().indexOf('image/avif') > -1)) {
+        modernFormatCount++; // Double count if the modern source tag exists
+      }
+    }
+  });
+
+  return {
+    count: allImages.length,
+    modernPct: (modernFormatCount / total) * 100,
+    lazyPct: (lazyCount / total) * 100,
+    responsivePct: (responsiveCount / total) * 100, // New metric
+  };
+}
+function fontStats() { const styles = qa('style, link[rel=\"stylesheet\"]'); let haveDisplay = false; styles.forEach(s => { const txt = s.tagName === 'STYLE' ? s.textContent : ''; if (txt && /font-display\\s*:\\s*(swap|optional)/i.test(txt)) haveDisplay = true; }); return { haveDisplay }; }
+
+function normalizeMediaUrl(url) {
   if (!url) return '';
   try {
     var absolute = new URL(url, location.href);
@@ -362,7 +405,7 @@ function normalizeMediaUrl(url){
     return url;
   }
 }
-function estimateDataUriSize(uri){
+function estimateDataUriSize(uri) {
   if (!uri || uri.indexOf('data:') !== 0) return 0;
   const comma = uri.indexOf(',');
   if (comma < 0) return 0;
@@ -378,7 +421,7 @@ function estimateDataUriSize(uri){
     return data.length;
   }
 }
-function requestContentLength(url){
+function requestContentLength(url) {
   return new Promise(resolve => {
     if (!url) {
       resolve(0);
@@ -406,7 +449,7 @@ function requestContentLength(url){
     }
   });
 }
-async function collectMediaAssets(){
+async function collectMediaAssets() {
   try {
     const allowedTypes = { img: true, image: true, video: true, audio: true, media: true, iframe: true };
     let resourceEntries = [];
@@ -564,7 +607,7 @@ async function collectMediaAssets(){
     return [];
   }
 }
-function isPaginationHref(href){
+function isPaginationHref(href) {
   if (!href) return false;
   var trimmed = href.trim();
   if (!trimmed) return false;
@@ -573,7 +616,7 @@ function isPaginationHref(href){
   if (/\/(?:page|paged|p|pg|pagination)[-_/]?\d+(?:[/?#]|$)/i.test(trimmed)) return true;
   return false;
 }
-function discoverPagination(){
+function discoverPagination() {
   try {
     var candidates = qa('a[href]');
     var hrefs = [];
@@ -597,7 +640,7 @@ function discoverPagination(){
     return { visible: false, relNextPrev: false, links: [] };
   }
 }
-function describeNodeLabel(node){
+function describeNodeLabel(node) {
   try {
     const tag = (node.tagName || '').toLowerCase();
     const id = (node.getAttribute('id') || '').trim();
@@ -622,18 +665,18 @@ function describeNodeLabel(node){
     return 'element';
   }
 }
-function countInteractive(node){
+function countInteractive(node) {
   const interactiveSel = 'a[href], button, input, select, textarea, [role="button"], [role="link"], [role="tab"], [role="checkbox"], [role="switch"], [role="menuitem"]';
   return node.querySelectorAll(interactiveSel).length;
 }
-function extractHeadings(node){
+function extractHeadings(node) {
   const headings = Array.from(node.querySelectorAll('h1,h2,h3,h4,h5,h6')).slice(0, 5);
   return headings.map(h => {
     const text = (h.innerText || '').replace(/\s+/g, ' ').trim();
     return text.slice(0, 80) + (text.length > 80 ? '…' : '');
   });
 }
-function listDataAttributes(node){
+function listDataAttributes(node) {
   const out = [];
   if (!node || !node.attributes) return out;
   const max = Math.min(node.attributes.length, 10);
@@ -648,12 +691,12 @@ function listDataAttributes(node){
   }
   return out;
 }
-function computeComponentReport(node){
+function computeComponentReport(node) {
   try {
     const label = describeNodeLabel(node);
     const tag = (node.tagName || '').toLowerCase();
     const role = (node.getAttribute('role') || '').trim();
-    const depth = (function(){
+    const depth = (function () {
       let d = 0;
       let cur = node;
       while (cur && cur !== document.body && d < 40) {
@@ -677,15 +720,15 @@ function computeComponentReport(node){
     const linkCount = linkNodes.length;
     let externalLinkCount = 0;
     const uniqueHosts = {};
-    const originHost = (location && location.hostname) ? location.hostname.replace(/^www\./,'') : '';
+    const originHost = (location && location.hostname) ? location.hostname.replace(/^www\./, '') : '';
     for (let i = 0; i < linkNodes.length; i++) {
       const href = linkNodes[i].getAttribute('href') || '';
       try {
         const url = new URL(href, location.href);
-        const host = (url.hostname || '').replace(/^www\./,'');
+        const host = (url.hostname || '').replace(/^www\./, '');
         if (host) uniqueHosts[host] = true;
         if (originHost && host && host !== originHost) externalLinkCount++;
-      } catch (e) {}
+      } catch (e) { }
     }
 
     const imageNodes = node.querySelectorAll('img');
@@ -741,9 +784,9 @@ function computeComponentReport(node){
     return null;
   }
 }
-function collectComponentReports(){
+function collectComponentReports() {
   try {
-    const selectors = ['header','main','footer','nav','aside','article','section','[role="main"]','[role="banner"]','[role="contentinfo"]','[role="complementary"]','[data-component]','[data-module]','[data-widget]','[data-testid]','[data-qa]'];
+    const selectors = ['header', 'main', 'footer', 'nav', 'aside', 'article', 'section', '[role="main"]', '[role="banner"]', '[role="contentinfo"]', '[role="complementary"]', '[data-component]', '[data-module]', '[data-widget]', '[data-testid]', '[data-qa]'];
     const nodes = [];
     selectors.forEach(sel => {
       qa(sel).forEach(node => {
@@ -764,7 +807,7 @@ function collectComponentReports(){
     for (let j = 0; j < nodes.length; j++) {
       const n = nodes[j];
       if (n && n[mark]) {
-        try { delete n[mark]; } catch (e) {}
+        try { delete n[mark]; } catch (e) { }
       }
     }
     return reports;
@@ -773,13 +816,13 @@ function collectComponentReports(){
   }
 }
 
-function normalizeGtmValue(value, depth){
+function normalizeGtmValue(value, depth) {
   if (depth > 3) return "";
   if (value == null) return "";
   if (typeof value === "string") {
     var trimmed = value.trim();
     if (!trimmed) return "";
-    return trimmed.replace(/\s+/g," ").slice(0,160);
+    return trimmed.replace(/\s+/g, " ").slice(0, 160);
   }
   if (typeof value === "number" || typeof value === "boolean") {
     return String(value);
@@ -797,18 +840,18 @@ function normalizeGtmValue(value, depth){
     try {
       if (typeof value.textContent === "string") {
         var text = value.textContent.trim();
-        if (text) return text.replace(/\s+/g," ").slice(0,160);
+        if (text) return text.replace(/\s+/g, " ").slice(0, 160);
       }
       if (typeof value.innerText === "string") {
         var text2 = value.innerText.trim();
-        if (text2) return text2.replace(/\s+/g," ").slice(0,160);
+        if (text2) return text2.replace(/\s+/g, " ").slice(0, 160);
       }
-    } catch (e) {}
+    } catch (e) { }
   }
   return "";
 }
 
-function pickFirstGtmValue(obj, keys){
+function pickFirstGtmValue(obj, keys) {
   if (!obj) return "";
   for (var i = 0; i < keys.length; i++) {
     var key = keys[i];
@@ -820,11 +863,11 @@ function pickFirstGtmValue(obj, keys){
   return "";
 }
 
-function detectGtmContainers(){
+function detectGtmContainers() {
   try {
     var ids = [];
     var seen = {};
-    function add(id){
+    function add(id) {
       if (!id) return;
       var txt = String(id).trim();
       if (!txt) return;
@@ -886,7 +929,7 @@ function detectGtmContainers(){
   }
 }
 
-function collectDataLayerEvents(){
+function collectDataLayerEvents() {
   try {
     var entries = [];
     var dl = window.dataLayer;
@@ -906,16 +949,16 @@ function collectDataLayerEvents(){
     for (var i = 0; i < entries.length; i++) {
       var entry = entries[i];
       if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
-      var eventName = pickFirstGtmValue(entry, ['event','eventName','event_name']);
-      var action = pickFirstGtmValue(entry, ['eventAction','event_action','action','interaction']);
-      var category = pickFirstGtmValue(entry, ['eventCategory','event_category','category','group']);
-      var label = pickFirstGtmValue(entry, ['eventLabel','event_label','label','text','heading','linkName','link_name']);
-      var cta = pickFirstGtmValue(entry, ['cta','ctaText','cta_text','ctaName','cta_name','linkText','link_text','buttonText','button_text','elementText','element_text','gtm.element','gtm.elementTarget']);
+      var eventName = pickFirstGtmValue(entry, ['event', 'eventName', 'event_name']);
+      var action = pickFirstGtmValue(entry, ['eventAction', 'event_action', 'action', 'interaction']);
+      var category = pickFirstGtmValue(entry, ['eventCategory', 'event_category', 'category', 'group']);
+      var label = pickFirstGtmValue(entry, ['eventLabel', 'event_label', 'label', 'text', 'heading', 'linkName', 'link_name']);
+      var cta = pickFirstGtmValue(entry, ['cta', 'ctaText', 'cta_text', 'ctaName', 'cta_name', 'linkText', 'link_text', 'buttonText', 'button_text', 'elementText', 'element_text', 'gtm.element', 'gtm.elementTarget']);
       if (!cta && label) cta = label;
-      var url = pickFirstGtmValue(entry, ['gtm.elementUrl','elementUrl','linkUrl','link_url','destinationUrl','destination_url','url']);
-      var elementId = pickFirstGtmValue(entry, ['gtm.elementId','elementId','element_id']);
-      var elementClasses = pickFirstGtmValue(entry, ['gtm.elementClasses','elementClasses','element_classes']);
-      var value = pickFirstGtmValue(entry, ['eventValue','event_value','value']);
+      var url = pickFirstGtmValue(entry, ['gtm.elementUrl', 'elementUrl', 'linkUrl', 'link_url', 'destinationUrl', 'destination_url', 'url']);
+      var elementId = pickFirstGtmValue(entry, ['gtm.elementId', 'elementId', 'element_id']);
+      var elementClasses = pickFirstGtmValue(entry, ['gtm.elementClasses', 'elementClasses', 'element_classes']);
+      var value = pickFirstGtmValue(entry, ['eventValue', 'event_value', 'value']);
       var detailParts = [];
       if (url) detailParts.push('URL: ' + url);
       if (elementId) detailParts.push('Element ID: ' + elementId);
@@ -951,7 +994,7 @@ function collectDataLayerEvents(){
   }
 }
 
-function collectGtmSignals(){
+function collectGtmSignals() {
   try {
     return {
       containers: detectGtmContainers(),
@@ -962,11 +1005,11 @@ function collectGtmSignals(){
   }
 }
 
-function collectWebVitalsOnce(){ return new Promise(resolve => { const out = { lcp: null, cls: 0, inp: null }; try { const poLcp = new PerformanceObserver((list)=>{ const entries=list.getEntries(); const last=entries[entries.length-1]; if (last) out.lcp = Math.round(last.startTime); }); poLcp.observe({ type: 'largest-contentful-paint', buffered: true }); const poCls = new PerformanceObserver((list)=>{ for (const e of list.getEntries()) { if (!e.hadRecentInput) out.cls += e.value; } }); poCls.observe({ type: 'layout-shift', buffered: true }); const poInp = new PerformanceObserver((list)=>{ for (const e of list.getEntries()) { const dur = e.duration; if (!out.inp || dur > out.inp) out.inp = Math.round(dur); } }); poInp.observe({ type: 'event', buffered: true, durationThreshold: 16 }); setTimeout(()=>resolve(out), 2500); } catch { resolve(out); } }); }
-async function simulateInfiniteScroll(){ const beforeCount = document.body.getElementsByTagName('*').length; const targetY = document.documentElement.scrollHeight - window.innerHeight - 5; window.scrollTo(0, Math.max(0, targetY)); const appended = await new Promise(res => { const start = Date.now(); const check = () => { const after = document.body.getElementsByTagName('*').length; if (after - beforeCount >= 20) { res(true); } else if (Date.now() - start > 2000) { res(false); } else { requestAnimationFrame(check); } }; requestAnimationFrame(check); }); return { appendedOnScroll: appended }; }
+function collectWebVitalsOnce() { return new Promise(resolve => { const out = { lcp: null, cls: 0, inp: null }; try { const poLcp = new PerformanceObserver((list) => { const entries = list.getEntries(); const last = entries[entries.length - 1]; if (last) out.lcp = Math.round(last.startTime); }); poLcp.observe({ type: 'largest-contentful-paint', buffered: true }); const poCls = new PerformanceObserver((list) => { for (const e of list.getEntries()) { if (!e.hadRecentInput) out.cls += e.value; } }); poCls.observe({ type: 'layout-shift', buffered: true }); const poInp = new PerformanceObserver((list) => { for (const e of list.getEntries()) { const dur = e.duration; if (!out.inp || dur > out.inp) out.inp = Math.round(dur); } }); poInp.observe({ type: 'event', buffered: true, durationThreshold: 16 }); setTimeout(() => resolve(out), 2500); } catch { resolve(out); } }); }
+async function simulateInfiniteScroll() { const beforeCount = document.body.getElementsByTagName('*').length; const targetY = document.documentElement.scrollHeight - window.innerHeight - 5; window.scrollTo(0, Math.max(0, targetY)); const appended = await new Promise(res => { const start = Date.now(); const check = () => { const after = document.body.getElementsByTagName('*').length; if (after - beforeCount >= 20) { res(true); } else if (Date.now() - start > 2000) { res(false); } else { requestAnimationFrame(check); } }; requestAnimationFrame(check); }); return { appendedOnScroll: appended }; }
 if (!window.__SRA_CONTENT_ACTIVE__) {
   window.__SRA_CONTENT_ACTIVE__ = true;
-  chrome.runtime.onMessage.addListener(function(msg, _sender, sendResponse){
+  chrome.runtime.onMessage.addListener(function (msg, _sender, sendResponse) {
     if (msg && msg.type === 'COLLECT_DOM_INFO') {
       (async () => {
         try {
