@@ -486,6 +486,55 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
       });
     }
 
+    function formatTtl(seconds) {
+      var ttl = Number(seconds);
+      if (!(ttl > 0)) return "0s";
+      if (ttl >= 86400) return Math.round(ttl / 86400) + "d";
+      if (ttl >= 3600) return Math.round(ttl / 3600) + "h";
+      if (ttl >= 60) return Math.round(ttl / 60) + "m";
+      return Math.round(ttl) + "s";
+    }
+
+    function analyzeCacheControl(headerVal) {
+      var raw = String(headerVal || "");
+      var low = raw.toLowerCase();
+      var info = {
+        raw: raw,
+        cacheable: false,
+        policy: "",
+        ttlSeconds: null,
+        sharedTtlSeconds: null
+      };
+
+      if (!low) {
+        info.policy = "missing";
+        return info;
+      }
+      if (low.indexOf("no-store") >= 0) {
+        info.policy = "no-store";
+        info.ttlSeconds = 0;
+        return info;
+      }
+      if (low.indexOf("no-cache") >= 0) {
+        info.policy = "no-cache";
+        info.ttlSeconds = 0;
+        return info;
+      }
+
+      var maxAgeMatch = low.match(/max-age\s*=\s*(\d+)/);
+      var sMaxAgeMatch = low.match(/s-maxage\s*=\s*(\d+)/);
+      if (maxAgeMatch && maxAgeMatch[1]) {
+        info.ttlSeconds = Number(maxAgeMatch[1]);
+      }
+      if (sMaxAgeMatch && sMaxAgeMatch[1]) {
+        info.sharedTtlSeconds = Number(sMaxAgeMatch[1]);
+      }
+
+      info.cacheable = info.ttlSeconds != null && info.ttlSeconds > 0;
+      info.policy = info.cacheable ? "public" : "uncacheable";
+      return info;
+    }
+
     function addCat(cat, weight, ok, text, recommendationText, detail, severity) {
       var sev = severity || "medium";
       var state = ok ? "ok" : (sev === "high" ? "bad" : "warn");
@@ -707,12 +756,15 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
 
     var enc = String(get(net, ["root", "headers", "content-encoding"], "")).toLowerCase();
     var compressed = enc.indexOf("br") >= 0 || enc.indexOf("gzip") >= 0 || enc.indexOf("zstd") >= 0;
-    var cacheOk = /max-age=\d{3,}/i.test(String(get(net, ["root", "headers", "cache-control"], "")));
+    var cacheHeader = String(get(net, ["root", "headers", "cache-control"], ""));
+    var cacheInfo = analyzeCacheControl(cacheHeader);
+    var cacheTtlLabel = cacheInfo.ttlSeconds != null ? formatTtl(cacheInfo.ttlSeconds) : "—";
+    var cacheDetail = cacheHeader ? "Cache-Control: " + cacheHeader + " (ttl ~" + cacheTtlLabel + ")" : "No Cache-Control header detected.";
 
     addCat("performance", 5, !!compressed, "Compression enabled (gzip/br)", "Enable Brotli/gzip (or zstd) on HTML and static assets.", compressed ? "Content-Encoding header indicates compression ('" + enc + "')." : "No compression header detected on initial response.", compressed ? "low" : "medium");
 
-    var cacheHeader = String(get(net, ["root", "headers", "cache-control"], ""));
-    addCat("performance", 5, !!cacheOk, "Caching headers present", "Set Cache-Control with max-age >= 1000 for cacheable assets.", cacheHeader ? "Cache-Control: " + cacheHeader : "No Cache-Control header detected.", cacheOk ? "low" : "medium");
+    var cacheFix = cacheInfo.cacheable ? "" : "Set Cache-Control with max-age >= 1000 for cacheable assets.";
+    addCat("performance", 5, cacheInfo.cacheable, cacheInfo.cacheable ? "Caching enabled (" + cacheTtlLabel + ")" : "Caching headers weak/missing", cacheFix, cacheDetail, cacheInfo.cacheable ? "low" : "medium");
 
     var preconnectCount = get(dom, ["resourceHints", "preconnect"], 0) || 0;
     addCat("performance", 3, preconnectCount > 0, "Preconnect present", "Add <link rel=\"preconnect\"> to critical third-party origins.", preconnectCount > 0 ? preconnectCount + " preconnect hint(s) found." : "No preconnect hints detected.", preconnectCount > 0 ? "low" : "low");
@@ -824,6 +876,13 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
       keyChecks: keyChecks,
       recommendations: recommendations,
       lighthouse: lighthouseStore,
+      caching: {
+        cacheControl: cacheHeader,
+        ttlSeconds: cacheInfo.ttlSeconds,
+        sharedTtlSeconds: cacheInfo.sharedTtlSeconds,
+        cacheable: cacheInfo.cacheable,
+        policy: cacheInfo.policy
+      },
       dom: dom,
       net: net
     };
