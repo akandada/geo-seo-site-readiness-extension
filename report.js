@@ -1,5 +1,6 @@
 import { renderOverallGauge, renderFindingBreakdown, renderScoreChart } from "./report/charts.js";
 import { $, cardEl, fillChips, parseQuery } from "./report/dom.js";
+import { formatDurationSeconds } from "./report/formatters.js";
 import { renderGeoDeepDive } from "./report/geo.js";
 import { renderLighthouseCard } from "./report/lighthouse.js";
 import { renderMediaInventory } from "./report/inventory.js";
@@ -190,6 +191,52 @@ function renderPagination(paginationDerived) {
   fillChips($("pgGuesses"), guesses, 6);
 }
 
+function renderCaching(caching, imageStats) {
+  var card = $("cachingCard");
+  if (!card) return;
+  var policyEl = $("cachePolicy");
+  var ttlEl = $("cacheTtl");
+  var sharedTtlEl = $("sharedCacheTtl");
+  var headerEl = $("cacheHeader");
+  var statusEl = $("cacheStatus");
+  var list = $("imageOptimizationList");
+
+  if (!caching) {
+    card.style.display = "none";
+    return;
+  }
+
+  card.style.display = "block";
+  if (policyEl) policyEl.textContent = caching.policy || "—";
+  if (ttlEl) ttlEl.textContent = caching.ttlSeconds != null ? formatDurationSeconds(caching.ttlSeconds) : "0s";
+  if (sharedTtlEl) sharedTtlEl.textContent = caching.sharedTtlSeconds != null ? formatDurationSeconds(caching.sharedTtlSeconds) : "—";
+  if (headerEl) headerEl.textContent = caching.cacheControl || "(missing)";
+  if (statusEl) statusEl.textContent = caching.cacheable ? "Cacheable" : "Uncacheable";
+
+  if (list) {
+    list.innerHTML = "";
+    var images = imageStats || {};
+    var imageEntries = [
+      { label: "Modern formats", value: images.modernPct != null ? Math.round(images.modernPct) + "%" : "—", detail: "AVIF/WebP adoption" },
+      { label: "Responsive images", value: images.responsivePct != null ? Math.round(images.responsivePct) + "%" : "—", detail: "srcset/picture usage" },
+      { label: "Lazy-loaded images", value: images.lazyPct != null ? Math.round(images.lazyPct) + "%" : "—", detail: "loading=\"lazy\" coverage" }
+    ];
+    imageEntries.forEach(function(entry){
+      var li = document.createElement("li");
+      li.className = "simpleMetric";
+      var heading = document.createElement("div");
+      heading.className = "summary";
+      heading.textContent = entry.label + ": " + entry.value;
+      var detail = document.createElement("div");
+      detail.className = "detail";
+      detail.textContent = entry.detail;
+      li.appendChild(heading);
+      li.appendChild(detail);
+      list.appendChild(li);
+    });
+  }
+}
+
 function renderHeader(data) {
   var urlFromDom = data.dom && data.dom.url ? data.dom.url : "";
   var urlFromNet = data.net && data.net.url ? data.net.url : "";
@@ -242,6 +289,8 @@ function renderHeader(data) {
     renderGeoDeepDive(data.dom && data.dom.geo ? data.dom.geo : null, data.categories && data.categories.geo ? data.categories.geo : null);
     renderGtmInventory(data.dom && data.dom.gtm ? data.dom.gtm : null);
     renderMediaInventory(data.dom && data.dom.mediaAssets ? data.dom.mediaAssets : null);
+
+    renderCaching(data.caching, data.dom && data.dom.images ? data.dom.images : null);
 
     renderPagination(data.net && data.net.paginationDerived ? data.net.paginationDerived : null);
 

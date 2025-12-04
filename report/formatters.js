@@ -60,6 +60,15 @@ export function formatBytes(bytes) {
   return rounded.toFixed(precision) + " " + units[idx];
 }
 
+export function formatDurationSeconds(seconds) {
+  var ttl = Number(seconds);
+  if (!(ttl > 0)) return "0s";
+  if (ttl >= 86400) return Math.round(ttl / 86400) + "d";
+  if (ttl >= 3600) return Math.round(ttl / 3600) + "h";
+  if (ttl >= 60) return Math.round(ttl / 60) + "m";
+  return Math.round(ttl) + "s";
+}
+
 export function mediaDisplayLabel(url) {
   if (!url) return "Unknown";
   if (url.indexOf("data:") === 0) return "data URI";
