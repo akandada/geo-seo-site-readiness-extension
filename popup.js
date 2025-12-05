@@ -212,6 +212,36 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
       return computeAudit({ url: origin || "" }, { url: origin || "" });
     }
 
+    function summarizeCaching(entries) {
+      var valid = entries.filter(function (entry) { return entry && entry.caching; }).map(function (entry) { return entry.caching; });
+      if (!valid.length) return null;
+
+      var ttlSum = 0, ttlCount = 0, sharedSum = 0, sharedCount = 0;
+      var policySet = {};
+      var headerSet = {};
+      for (var i = 0; i < valid.length; i++) {
+        var c = valid[i];
+        if (c.ttlSeconds != null) { ttlSum += c.ttlSeconds; ttlCount += 1; }
+        if (c.sharedTtlSeconds != null) { sharedSum += c.sharedTtlSeconds; sharedCount += 1; }
+        if (c.policy) policySet[c.policy] = true;
+        if (c.cacheControl) headerSet[c.cacheControl] = true;
+      }
+
+      function pickLabel(setObj, mixedLabel) {
+        var keys = Object.keys(setObj);
+        if (!keys.length) return "";
+        return keys.length === 1 ? keys[0] : mixedLabel;
+      }
+
+      return {
+        cacheControl: pickLabel(headerSet, "(mixed)"),
+        ttlSeconds: ttlCount ? Math.round(ttlSum / ttlCount) : null,
+        sharedTtlSeconds: sharedCount ? Math.round(sharedSum / sharedCount) : null,
+        cacheable: valid.every(function (c) { return !!c.cacheable; }),
+        policy: pickLabel(policySet, "mixed")
+      };
+    }
+
     var metaPages = list.map(function (page) {
       return {
         url: page.url,
@@ -230,6 +260,7 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
         keyChecks: single.keyChecks,
         recommendations: single.recommendations,
         lighthouse: single.lighthouse,
+        caching: single.caching,
         dom: single.dom,
         net: single.net
       };
@@ -245,6 +276,7 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
       keyChecks: [],
       recommendations: [],
       lighthouse: list[0].audit.lighthouse,
+      caching: summarizeCaching(list),
       dom: list[0].audit.dom,
       net: list[0].audit.net
     };
