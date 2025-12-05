@@ -237,6 +237,89 @@ function renderCaching(caching, imageStats) {
   }
 }
 
+function renderPageCacheAnalysis(caching) {
+  var card = $("pageCacheCard");
+  var insightsList = $("pageCacheInsights");
+  var recList = $("pageCacheRecommendations");
+
+  if (!card) return;
+  if (!caching) {
+    card.style.display = "none";
+    return;
+  }
+
+  card.style.display = "block";
+  if (insightsList) insightsList.innerHTML = "";
+  if (recList) recList.innerHTML = "";
+
+  function addItem(listEl, severity, summary, detail) {
+    if (!listEl || !summary) return;
+    var li = document.createElement("li");
+    li.className = severity || "info";
+    var heading = document.createElement("div");
+    heading.className = "summary";
+    heading.textContent = summary;
+    li.appendChild(heading);
+    if (detail) {
+      var detailEl = document.createElement("div");
+      detailEl.className = "detail";
+      detailEl.textContent = detail;
+      li.appendChild(detailEl);
+    }
+    listEl.appendChild(li);
+  }
+
+  var ttlSeconds = caching.ttlSeconds;
+  var sharedTtl = caching.sharedTtlSeconds;
+  var cacheHeader = caching.cacheControl || "";
+  var policy = (caching.policy || "").toLowerCase();
+  var cacheable = !!caching.cacheable;
+  var ttlLabel = ttlSeconds != null ? formatDurationSeconds(ttlSeconds) : "0s";
+  var sharedLabel = sharedTtl != null ? formatDurationSeconds(sharedTtl) : "—";
+  var headerLabel = cacheHeader || "(missing)";
+
+  addItem(insightsList, cacheHeader ? "ok" : "warn", cacheHeader ? "Cache-Control present" : "Cache-Control missing", cacheHeader ? cacheHeader : "Responses may be revalidated on every request without an explicit directive.");
+
+  if (!cacheable) {
+    addItem(insightsList, "bad", "Response marked uncacheable", "Policy: " + (policy || "unknown") + ". Header: " + headerLabel + ".");
+  } else {
+    addItem(insightsList, "ok", "Cacheable response", "Policy: " + (policy || "public") + " with max-age ~" + ttlLabel + ".");
+  }
+
+  if (ttlSeconds == null || ttlSeconds <= 0) {
+    addItem(insightsList, "bad", "No usable max-age detected", "Set a positive max-age to let browsers reuse the response.");
+  } else if (ttlSeconds >= 86400) {
+    addItem(insightsList, "ok", "Long-lived max-age", "~" + ttlLabel + " helps repeat visitors avoid re-fetching.");
+  } else if (ttlSeconds >= 3600) {
+    addItem(insightsList, "warn", "Moderate max-age", "~" + ttlLabel + " is serviceable; consider 1-7 days for static assets.");
+  } else {
+    addItem(insightsList, "bad", "Short max-age", "~" + ttlLabel + " triggers frequent revalidation.");
+  }
+
+  if (cacheable && sharedTtl != null) {
+    var sharedSeverity = sharedTtl >= 86400 ? "ok" : "warn";
+    var sharedDetail = sharedTtl >= 86400 ? "Shared caches can hold the response for ~" + sharedLabel + "." : "~" + sharedLabel + " in shared caches; consider at least a day for CDN edge efficiency.";
+    addItem(insightsList, sharedSeverity, "s-maxage configured", sharedDetail);
+  } else if (cacheable) {
+    addItem(insightsList, "warn", "No s-maxage for shared caches", "Add s-maxage to give CDNs explicit TTL guidance.");
+  }
+
+  if (!cacheHeader) {
+    addItem(recList, "bad", "Declare Cache-Control", "Use Cache-Control: public, max-age=86400, s-maxage=86400 (or your policy) to enable caching.");
+  }
+  if (!cacheable) {
+    addItem(recList, "bad", "Allow caching for cache-safe responses", "Remove no-store/no-cache directives on static content and specify a positive max-age.");
+  }
+  if (cacheable && (ttlSeconds == null || ttlSeconds < 3600)) {
+    addItem(recList, "warn", "Increase max-age", "Aim for >=1h on HTML and 1-7 days on static assets to cut repeat latency.");
+  } else if (cacheable && ttlSeconds >= 3600 && ttlSeconds < 86400) {
+    addItem(recList, "warn", "Extend TTL for static assets", "Consider 1-7 day max-age where content rarely changes.");
+  }
+  if (cacheable && sharedTtl == null) {
+    addItem(recList, "warn", "Add s-maxage", "Guide CDNs with s-maxage matching or exceeding max-age to reduce origin hits.");
+  }
+}
+
 function renderHeader(data) {
   var urlFromDom = data.dom && data.dom.url ? data.dom.url : "";
   var urlFromNet = data.net && data.net.url ? data.net.url : "";
@@ -291,6 +374,7 @@ function renderHeader(data) {
     renderMediaInventory(data.dom && data.dom.mediaAssets ? data.dom.mediaAssets : null);
 
     renderCaching(data.caching, data.dom && data.dom.images ? data.dom.images : null);
+    renderPageCacheAnalysis(data.caching);
 
     renderPagination(data.net && data.net.paginationDerived ? data.net.paginationDerived : null);
 
