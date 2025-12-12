@@ -1,5 +1,6 @@
 import { renderOverallGauge, renderFindingBreakdown, renderScoreChart } from "./report/charts.js";
 import { $, cardEl, fillChips, parseQuery } from "./report/dom.js";
+import { formatDurationSeconds } from "./report/formatters.js";
 import { renderGeoDeepDive } from "./report/geo.js";
 import { renderLighthouseCard } from "./report/lighthouse.js";
 import { renderMediaInventory } from "./report/inventory.js";
@@ -190,6 +191,202 @@ function renderPagination(paginationDerived) {
   fillChips($("pgGuesses"), guesses, 6);
 }
 
+function renderCaching(caching, imageStats) {
+  var card = $("cachingCard");
+  if (!card) return;
+  var policyEl = $("cachePolicy");
+  var ttlEl = $("cacheTtl");
+  var sharedTtlEl = $("sharedCacheTtl");
+  var headerEl = $("cacheHeader");
+  var statusEl = $("cacheStatus");
+  var list = $("imageOptimizationList");
+
+  if (!caching) {
+    card.style.display = "none";
+    return;
+  }
+
+  card.style.display = "block";
+  if (policyEl) policyEl.textContent = caching.policy || "—";
+  if (ttlEl) ttlEl.textContent = caching.ttlSeconds != null ? formatDurationSeconds(caching.ttlSeconds) : "0s";
+  if (sharedTtlEl) sharedTtlEl.textContent = caching.sharedTtlSeconds != null ? formatDurationSeconds(caching.sharedTtlSeconds) : "—";
+  if (headerEl) headerEl.textContent = caching.cacheControl || "(missing)";
+  if (statusEl) statusEl.textContent = caching.cacheable ? "Cacheable" : "Uncacheable";
+
+  if (list) {
+    list.innerHTML = "";
+    var images = imageStats || {};
+    var imageEntries = [
+      { label: "Modern formats", value: images.modernPct != null ? Math.round(images.modernPct) + "%" : "—", detail: "AVIF/WebP adoption" },
+      { label: "Responsive images", value: images.responsivePct != null ? Math.round(images.responsivePct) + "%" : "—", detail: "srcset/picture usage" },
+      { label: "Lazy-loaded images", value: images.lazyPct != null ? Math.round(images.lazyPct) + "%" : "—", detail: "loading=\"lazy\" coverage" }
+    ];
+    imageEntries.forEach(function(entry){
+      var li = document.createElement("li");
+      li.className = "simpleMetric";
+      var heading = document.createElement("div");
+      heading.className = "summary";
+      heading.textContent = entry.label + ": " + entry.value;
+      var detail = document.createElement("div");
+      detail.className = "detail";
+      detail.textContent = entry.detail;
+      li.appendChild(heading);
+      li.appendChild(detail);
+      list.appendChild(li);
+    });
+  }
+}
+
+function renderPageCacheAnalysis(caching) {
+  var card = $("pageCacheCard");
+  var insightsList = $("pageCacheInsights");
+  var recList = $("pageCacheRecommendations");
+
+  if (!card) return;
+  if (!caching) {
+    card.style.display = "none";
+    return;
+  }
+
+  card.style.display = "block";
+  if (insightsList) insightsList.innerHTML = "";
+  if (recList) recList.innerHTML = "";
+
+  function addItem(listEl, severity, summary, detail) {
+    if (!listEl || !summary) return;
+    var li = document.createElement("li");
+    li.className = severity || "info";
+    var heading = document.createElement("div");
+    heading.className = "summary";
+    heading.textContent = summary;
+    li.appendChild(heading);
+    if (detail) {
+      var detailEl = document.createElement("div");
+      detailEl.className = "detail";
+      detailEl.textContent = detail;
+      li.appendChild(detailEl);
+    }
+    listEl.appendChild(li);
+  }
+
+  var ttlSeconds = caching.ttlSeconds;
+  var sharedTtl = caching.sharedTtlSeconds;
+  var cacheHeader = caching.cacheControl || "";
+  var policy = (caching.policy || "").toLowerCase();
+  var cacheable = !!caching.cacheable;
+  var ttlLabel = ttlSeconds != null ? formatDurationSeconds(ttlSeconds) : "0s";
+  var sharedLabel = sharedTtl != null ? formatDurationSeconds(sharedTtl) : "—";
+  var headerLabel = cacheHeader || "(missing)";
+
+  addItem(insightsList, cacheHeader ? "ok" : "warn", cacheHeader ? "Cache-Control present" : "Cache-Control missing", cacheHeader ? cacheHeader : "Responses may be revalidated on every request without an explicit directive.");
+
+  if (!cacheable) {
+    addItem(insightsList, "bad", "Response marked uncacheable", "Policy: " + (policy || "unknown") + ". Header: " + headerLabel + ".");
+  } else {
+    addItem(insightsList, "ok", "Cacheable response", "Policy: " + (policy || "public") + " with max-age ~" + ttlLabel + ".");
+  }
+
+  if (ttlSeconds == null || ttlSeconds <= 0) {
+    addItem(insightsList, "bad", "No usable max-age detected", "Set a positive max-age to let browsers reuse the response.");
+  } else if (ttlSeconds >= 86400) {
+    addItem(insightsList, "ok", "Long-lived max-age", "~" + ttlLabel + " helps repeat visitors avoid re-fetching.");
+  } else if (ttlSeconds >= 3600) {
+    addItem(insightsList, "warn", "Moderate max-age", "~" + ttlLabel + " is serviceable; consider 1-7 days for static assets.");
+  } else {
+    addItem(insightsList, "bad", "Short max-age", "~" + ttlLabel + " triggers frequent revalidation.");
+  }
+
+  if (cacheable && sharedTtl != null) {
+    var sharedSeverity = sharedTtl >= 86400 ? "ok" : "warn";
+    var sharedDetail = sharedTtl >= 86400 ? "Shared caches can hold the response for ~" + sharedLabel + "." : "~" + sharedLabel + " in shared caches; consider at least a day for CDN edge efficiency.";
+    addItem(insightsList, sharedSeverity, "s-maxage configured", sharedDetail);
+  } else if (cacheable) {
+    addItem(insightsList, "warn", "No s-maxage for shared caches", "Add s-maxage to give CDNs explicit TTL guidance.");
+  }
+
+  if (!cacheHeader) {
+    addItem(recList, "bad", "Declare Cache-Control", "Use Cache-Control: public, max-age=86400, s-maxage=86400 (or your policy) to enable caching.");
+  }
+  if (!cacheable) {
+    addItem(recList, "bad", "Allow caching for cache-safe responses", "Remove no-store/no-cache directives on static content and specify a positive max-age.");
+  }
+  if (cacheable && (ttlSeconds == null || ttlSeconds < 3600)) {
+    addItem(recList, "warn", "Increase max-age", "Aim for >=1h on HTML and 1-7 days on static assets to cut repeat latency.");
+  } else if (cacheable && ttlSeconds >= 3600 && ttlSeconds < 86400) {
+    addItem(recList, "warn", "Extend TTL for static assets", "Consider 1-7 day max-age where content rarely changes.");
+  }
+  if (cacheable && sharedTtl == null) {
+    addItem(recList, "warn", "Add s-maxage", "Guide CDNs with s-maxage matching or exceeding max-age to reduce origin hits.");
+  }
+}
+
+function renderHtmlStructure(structure) {
+  var card = $("htmlStructureCard");
+  var list = $("htmlStructureList");
+
+  if (!card || !list) return;
+  if (!structure) {
+    card.style.display = "none";
+    return;
+  }
+
+  card.style.display = "block";
+  list.innerHTML = "";
+
+  function addItem(summary, detail) {
+    if (!summary) return;
+    var li = document.createElement("li");
+    var summaryDiv = document.createElement("div");
+    summaryDiv.className = "summary";
+    summaryDiv.textContent = summary;
+    li.appendChild(summaryDiv);
+    if (detail) {
+      var detailDiv = document.createElement("div");
+      detailDiv.className = "detail";
+      detailDiv.textContent = detail;
+      li.appendChild(detailDiv);
+    }
+    list.appendChild(li);
+  }
+
+  var title = structure.title || "";
+  addItem(title ? "Title tag present" : "Title tag missing", title ? "Length: " + title.length + " characters." : "No <title> element detected.");
+
+  var metaDescription = structure.metaDescription || "";
+  addItem(metaDescription ? "Meta description present" : "Meta description missing", metaDescription ? "Length: " + metaDescription.length + " characters." : "No <meta name=\"description\"> tag detected.");
+
+  var headingCounts = structure.headingCounts || {};
+  var headingTotal = Number(structure.headingTotal || 0);
+  var headingParts = [];
+  ["h1", "h2", "h3", "h4", "h5", "h6"].forEach(function(level){
+    var count = Number(headingCounts[level] || 0);
+    if (count > 0) headingParts.push(level.toUpperCase() + "×" + count);
+  });
+  addItem(headingTotal > 0 ? "Headings detected" : "Headings missing", headingTotal > 0 ? "Headings found: " + headingParts.join(", ") + "." : "No heading tags detected.");
+
+  var listCount = Number(structure.listCount || 0);
+  var listItemCount = Number(structure.listItemCount || 0);
+  addItem(listCount > 0 ? "List markup present" : "List markup missing", listCount > 0 ? listCount + " list(s) with " + listItemCount + " item(s)." : "No <ul>/<ol> lists detected.");
+
+  var altMissing = Number(structure.imagesMissingAlt || 0);
+  addItem(altMissing === 0 ? "Image alt attributes present" : "Images missing alt text", altMissing === 0 ? "All images include alt text." : altMissing + " image(s) missing alt attributes.");
+
+  var canonical = structure.canonicalHref || "";
+  addItem(canonical ? "Canonical link detected" : "Canonical link missing", canonical ? canonical : "No <link rel=\"canonical\"> element detected.");
+
+  var robotsMeta = structure.robotsMeta || "";
+  addItem(robotsMeta ? "Robots meta present" : "Robots meta missing", robotsMeta ? "Content: " + robotsMeta + "." : "No <meta name=\"robots\"> tag detected.");
+
+  var schemaCount = Number(structure.schemaCount || 0);
+  addItem(schemaCount > 0 ? "Structured data present" : "Structured data missing", schemaCount > 0 ? schemaCount + " JSON-LD script tag(s) found." : "No JSON-LD structured data detected.");
+
+  var tableCount = Number(structure.tableCount || 0);
+  addItem(tableCount > 0 ? "Table elements detected" : "Table elements missing", tableCount > 0 ? tableCount + " <table> element(s) detected." : "No <table> elements detected.");
+
+  var iframeCount = Number(structure.iframeCount || 0);
+  addItem(iframeCount === 0 ? "No iframes embedded" : "Iframes embedded", iframeCount === 0 ? "No <iframe> elements detected." : iframeCount + " iframe(s) detected; ensure embeds are crawlable and performant.");
+}
+
 function renderHeader(data) {
   var urlFromDom = data.dom && data.dom.url ? data.dom.url : "";
   var urlFromNet = data.net && data.net.url ? data.net.url : "";
@@ -242,6 +439,10 @@ function renderHeader(data) {
     renderGeoDeepDive(data.dom && data.dom.geo ? data.dom.geo : null, data.categories && data.categories.geo ? data.categories.geo : null);
     renderGtmInventory(data.dom && data.dom.gtm ? data.dom.gtm : null);
     renderMediaInventory(data.dom && data.dom.mediaAssets ? data.dom.mediaAssets : null);
+
+    renderCaching(data.caching, data.dom && data.dom.images ? data.dom.images : null);
+    renderPageCacheAnalysis(data.caching);
+    renderHtmlStructure(data.dom && data.dom.htmlStructure ? data.dom.htmlStructure : null);
 
     renderPagination(data.net && data.net.paginationDerived ? data.net.paginationDerived : null);
 

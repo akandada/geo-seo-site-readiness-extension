@@ -198,6 +198,41 @@
       <ul class="list" id="lighthouseMetricsList"></ul>
     </section>
 
+    <section class="card" id="cachingCard" style="display:none;">
+      <h2>Caching &amp; Asset Delivery</h2>
+      <div class="kv">
+        <div class="muted">Cache policy</div><div id="cachePolicy">—</div>
+        <div class="muted">Cache TTL</div><div id="cacheTtl">—</div>
+        <div class="muted">Shared cache TTL</div><div id="sharedCacheTtl">—</div>
+        <div class="muted">Status</div><div id="cacheStatus">—</div>
+        <div class="muted">Cache-Control</div><div id="cacheHeader">—</div>
+      </div>
+      <div class="spacer"></div>
+      <div class="muted small">Image optimization</div>
+      <ul class="list" id="imageOptimizationList"></ul>
+    </section>
+
+    <section class="card" id="pageCacheCard" style="display:none;">
+      <h2>Page Cache Analysis</h2>
+      <div class="muted small">Interpretation of Cache-Control directives with concrete improvement ideas for faster repeat visits.</div>
+      <div class="grid-2">
+        <div>
+          <div class="muted small">Observations</div>
+          <ul class="list" id="pageCacheInsights"></ul>
+        </div>
+        <div>
+          <div class="muted small">Recommendations</div>
+          <ul class="list" id="pageCacheRecommendations"></ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" id="htmlStructureCard" style="display:none;">
+      <h2>HTML Structure Tags</h2>
+      <div class="muted small">Counts and presence checks for foundational tags captured from the DOM snapshot.</div>
+      <ul class="list" id="htmlStructureList"></ul>
+    </section>
+
     <section class="card grid-3" id="categoryCards">
       <!-- Cards inserted by report.js -->
     </section>

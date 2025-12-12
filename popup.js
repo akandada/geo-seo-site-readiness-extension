@@ -212,6 +212,36 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
       return computeAudit({ url: origin || "" }, { url: origin || "" });
     }
 
+    function summarizeCaching(entries) {
+      var valid = entries.filter(function (entry) { return entry && entry.caching; }).map(function (entry) { return entry.caching; });
+      if (!valid.length) return null;
+
+      var ttlSum = 0, ttlCount = 0, sharedSum = 0, sharedCount = 0;
+      var policySet = {};
+      var headerSet = {};
+      for (var i = 0; i < valid.length; i++) {
+        var c = valid[i];
+        if (c.ttlSeconds != null) { ttlSum += c.ttlSeconds; ttlCount += 1; }
+        if (c.sharedTtlSeconds != null) { sharedSum += c.sharedTtlSeconds; sharedCount += 1; }
+        if (c.policy) policySet[c.policy] = true;
+        if (c.cacheControl) headerSet[c.cacheControl] = true;
+      }
+
+      function pickLabel(setObj, mixedLabel) {
+        var keys = Object.keys(setObj);
+        if (!keys.length) return "";
+        return keys.length === 1 ? keys[0] : mixedLabel;
+      }
+
+      return {
+        cacheControl: pickLabel(headerSet, "(mixed)"),
+        ttlSeconds: ttlCount ? Math.round(ttlSum / ttlCount) : null,
+        sharedTtlSeconds: sharedCount ? Math.round(sharedSum / sharedCount) : null,
+        cacheable: valid.every(function (c) { return !!c.cacheable; }),
+        policy: pickLabel(policySet, "mixed")
+      };
+    }
+
     var metaPages = list.map(function (page) {
       return {
         url: page.url,
@@ -230,6 +260,7 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
         keyChecks: single.keyChecks,
         recommendations: single.recommendations,
         lighthouse: single.lighthouse,
+        caching: single.caching,
         dom: single.dom,
         net: single.net
       };
@@ -245,6 +276,7 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
       keyChecks: [],
       recommendations: [],
       lighthouse: list[0].audit.lighthouse,
+      caching: summarizeCaching(list),
       dom: list[0].audit.dom,
       net: list[0].audit.net
     };
@@ -486,6 +518,61 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
       });
     }
 
+    function formatTtl(seconds) {
+      var ttl = Number(seconds);
+      if (!(ttl > 0)) return "0s";
+      if (ttl >= 86400) return Math.round(ttl / 86400) + "d";
+      if (ttl >= 3600) return Math.round(ttl / 3600) + "h";
+      if (ttl >= 60) return Math.round(ttl / 60) + "m";
+      return Math.round(ttl) + "s";
+    }
+
+    function formatPct(val) {
+      var num = Number(val || 0);
+      if (!(num === num)) return "0%";
+      return Math.round(num * 1000) / 10 + "%";
+    }
+
+    function analyzeCacheControl(headerVal) {
+      var raw = String(headerVal || "");
+      var low = raw.toLowerCase();
+      var info = {
+        raw: raw,
+        cacheable: false,
+        policy: "",
+        ttlSeconds: null,
+        sharedTtlSeconds: null
+      };
+
+      if (!low) {
+        info.policy = "missing";
+        return info;
+      }
+      if (low.indexOf("no-store") >= 0) {
+        info.policy = "no-store";
+        info.ttlSeconds = 0;
+        return info;
+      }
+      if (low.indexOf("no-cache") >= 0) {
+        info.policy = "no-cache";
+        info.ttlSeconds = 0;
+        return info;
+      }
+
+      var maxAgeMatch = low.match(/max-age\s*=\s*(\d+)/);
+      var sMaxAgeMatch = low.match(/s-maxage\s*=\s*(\d+)/);
+      if (maxAgeMatch && maxAgeMatch[1]) {
+        info.ttlSeconds = Number(maxAgeMatch[1]);
+      }
+      if (sMaxAgeMatch && sMaxAgeMatch[1]) {
+        info.sharedTtlSeconds = Number(sMaxAgeMatch[1]);
+      }
+
+      info.cacheable = info.ttlSeconds != null && info.ttlSeconds > 0;
+      info.policy = info.cacheable ? "public" : "uncacheable";
+      return info;
+    }
+
     function addCat(cat, weight, ok, text, recommendationText, detail, severity) {
       var sev = severity || "medium";
       var state = ok ? "ok" : (sev === "high" ? "bad" : "warn");
@@ -509,7 +596,7 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
     var sitemapDetail = sitemapExists ?
       "robots.txt references a sitemap or /sitemap.xml responded." :
       "No sitemap reference found in robots.txt and /sitemap.xml was unreachable.";
-    addCat("seo", 6, sitemapExists, "Sitemap discoverable", "Expose /sitemap.xml (and reference it in robots.txt).", sitemapDetail, sitemapExists ? "low" : "high");
+    addCat("seo", 5, sitemapExists, "Sitemap discoverable", "Expose /sitemap.xml (and reference it in robots.txt).", sitemapDetail, sitemapExists ? "low" : "high");
 
     var aiTxtOk = get(net, ["aiTxt", "exists"], false) === true;
     var aiTxtStatus = get(net, ["aiTxt", "status"], 0);
@@ -565,17 +652,34 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
     }
 
     var indexDetail = directiveDetail(indexAllowed, "noindex", xRobots.indexOf("noindex") >= 0, metaRobots.indexOf("noindex") >= 0);
-    addCat("seo", 6, indexAllowed, "Indexing allowed", "Remove noindex directives so search engines can index the page.", indexDetail, indexAllowed ? "low" : "high");
+    addCat("seo", 5, indexAllowed, "Indexing allowed", "Remove noindex directives so search engines can index the page.", indexDetail, indexAllowed ? "low" : "high");
 
     var aiDetail = directiveDetail(aiUseAllowed, "noai", xRobots.indexOf("noai") >= 0, metaRobots.indexOf("noai") >= 0);
     addCat("geo", 0, aiUseAllowed, aiUseAllowed ? "AI use allowed" : "AI use blocked via noai", "Remove noai directives if AI access is intended.", aiDetail, aiUseAllowed ? "low" : "high");
     var geoPenalty = aiUseAllowed ? 0 : 6;
 
     var jsonLdCount = get(dom, ["jsonLdCount"], 0) || 0;
-    addCat("seo", 5, jsonLdCount > 0, "JSON-LD present", "Add schema.org JSON-LD (WebSite/Article/FAQ/etc).", jsonLdCount > 0 ? jsonLdCount + " JSON-LD script tag(s) found." : "No JSON-LD script tags detected.", jsonLdCount > 0 ? "low" : "medium");
+    addCat("seo", 4, jsonLdCount > 0, "JSON-LD present", "Add schema.org JSON-LD (WebSite/Article/FAQ/etc).", jsonLdCount > 0 ? jsonLdCount + " JSON-LD script tag(s) found." : "No JSON-LD script tags detected.", jsonLdCount > 0 ? "low" : "medium");
 
     var canonicalHref = get(dom, ["canonical"], "");
     addCat("seo", 3, !!canonicalHref, "Canonical present", "Add <link rel=\"canonical\"> to highlight the preferred URL.", canonicalHref ? "Canonical URL: " + canonicalHref : "No canonical link element detected.", canonicalHref ? "low" : "medium");
+
+    var hreflangInfo = get(dom, ["hreflang"], {}) || {};
+    var hreflangCount = Number(hreflangInfo.count || 0);
+    var hreflangLangs = hreflangInfo.uniqueLangs || [];
+    var hreflangDupes = hreflangInfo.duplicateLangs || [];
+    var hreflangOk = hreflangCount > 0 && hreflangDupes.length === 0;
+    var hreflangPreview = hreflangLangs.slice(0, 5).join(", ");
+    var hreflangDetail = hreflangCount ?
+      "Detected " + hreflangCount + " hreflang link(s) across " + hreflangLangs.length + " locale(s)" + (hreflangPreview ? ": " + hreflangPreview : "") + "." :
+      "No hreflang alternate links detected.";
+    if (hreflangDupes.length) {
+      hreflangDetail += " Duplicate entries for: " + hreflangDupes.slice(0, 3).join(", ") + ".";
+    }
+    var hreflangRecommendation = hreflangOk ? null : (hreflangCount === 0 ?
+      "Add <link rel=\"alternate\" hreflang=\"...\"> tags for each language/region version." :
+      "Deduplicate hreflang tags so each locale points to a single canonical URL.");
+    addCat("seo", 2, hreflangOk, hreflangOk ? "Hreflang annotations present" : "Hreflang annotations missing or duplicated", hreflangRecommendation, hreflangDetail, hreflangOk ? "low" : "medium");
 
     var titleOkVal = !!get(dom, ["titleOk"], false);
     var titleLength = Number(get(dom, ["titleLength"], 0) || 0);
@@ -584,6 +688,73 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
     var metaDescOkVal = !!get(dom, ["metaDescOk"], false);
     var metaDescLength = Number(get(dom, ["metaDescriptionLength"], 0) || 0);
     addCat("seo", 2, metaDescOkVal, "Meta description OK (50–160)", "Write a meta description between 50–160 characters.", metaDescLength ? "Meta description length: " + metaDescLength + " characters." : "Meta description missing or empty.", metaDescOkVal ? "low" : "medium");
+
+    var htmlStructure = get(dom, ["htmlStructure"], {}) || {};
+
+    var structureTitleLength = (get(htmlStructure, ["title"], "") || "").length;
+    var titlePresenceDetail = structureTitleLength ? "Title length: " + structureTitleLength + " characters." : "No <title> element detected.";
+    addCat("seo", 0, structureTitleLength > 0, structureTitleLength > 0 ? "Title tag detected" : "Title tag missing", null, titlePresenceDetail, structureTitleLength > 0 ? "low" : "medium");
+
+    var structureMetaLength = (get(htmlStructure, ["metaDescription"], "") || "").length;
+    var metaPresenceDetail = structureMetaLength ? "Meta description length: " + structureMetaLength + " characters." : "No <meta name=\"description\"> tag detected.";
+    addCat("seo", 0, structureMetaLength > 0, structureMetaLength > 0 ? "Meta description detected" : "Meta description missing", null, metaPresenceDetail, structureMetaLength > 0 ? "low" : "medium");
+
+    var headingCounts = get(htmlStructure, ["headingCounts"], {}) || {};
+    var headingTotal = Number(get(htmlStructure, ["headingTotal"], 0) || 0);
+    var headingLevelParts = [];
+    ["h1", "h2", "h3", "h4", "h5", "h6"].forEach(function (level) {
+      var count = Number(get(headingCounts, [level], 0) || 0);
+      if (count > 0) headingLevelParts.push(level.toUpperCase() + "×" + count);
+    });
+    var headingDetail = headingTotal ? "Headings found: " + headingLevelParts.join(", ") + "." : "No heading tags detected.";
+    addCat("seo", 0, headingTotal > 0, headingTotal > 0 ? "Heading tags detected" : "Heading tags missing", "Add semantic headings (H1–H6) to outline the page hierarchy.", headingDetail, headingTotal > 0 ? "low" : "medium");
+
+    var structureAltMissing = Number(get(htmlStructure, ["imagesMissingAlt"], 0) || 0);
+    var altDetail = structureAltMissing === 0 ? "All images include alt text." : structureAltMissing + " image(s) missing alt text.";
+    addCat("seo", 0, structureAltMissing === 0, structureAltMissing === 0 ? "Image alt attributes present" : "Images missing alt text", null, altDetail, structureAltMissing === 0 ? "low" : "medium");
+
+    var robotsMetaVal = String(get(htmlStructure, ["robotsMeta"], "") || "");
+    var robotsMetaPresent = !!robotsMetaVal;
+    var robotsDetail = robotsMetaPresent ? "Robots meta content: " + robotsMetaVal + "." : "No <meta name=\"robots\"> tag detected.";
+    addCat("seo", 0, robotsMetaPresent, robotsMetaPresent ? "Robots meta tag detected" : "Robots meta tag missing", robotsMetaPresent ? null : "Add a <meta name=\"robots\"> tag to control crawling and indexing directives.", robotsDetail, robotsMetaPresent ? "low" : "medium");
+
+    var tableCount = Number(get(htmlStructure, ["tableCount"], 0) || 0);
+    var tableDetail = tableCount ? tableCount + " table element(s) detected." : "No <table> elements detected.";
+    addCat("seo", 0, tableCount > 0, tableCount > 0 ? "Table tags detected" : "Table tags missing", tableCount > 0 ? null : "Use <table> markup when presenting structured datasets.", tableDetail, tableCount > 0 ? "low" : "medium");
+
+    var iframeCount = Number(get(htmlStructure, ["iframeCount"], 0) || 0);
+    var iframeOk = iframeCount === 0;
+    var iframeDetail = iframeOk ? "No iframes detected." : iframeCount + " iframe(s) detected; ensure embeds do not hurt performance or crawlability.";
+    addCat("seo", 0, iframeOk, iframeOk ? "No iframes embedded" : "Iframes embedded", iframeOk ? null : "Limit or optimize <iframe> embeds to avoid performance slowdowns.", iframeDetail, iframeOk ? "low" : "medium");
+
+    var listCount = Number(get(htmlStructure, ["listCount"], 0) || 0);
+    var listItemCount = Number(get(htmlStructure, ["listItemCount"], 0) || 0);
+    var listOk = listCount > 0 && listItemCount > 0;
+    var listDetail = listOk ? listCount + " list(s) and " + listItemCount + " list item(s) detected." : "No <ul>/<ol> lists detected.";
+    addCat("seo", 0, listOk, listOk ? "List tags detected" : "List tags missing", listOk ? null : "Use <ul>/<ol> lists for scannable bullets that can surface in snippets.", listDetail, listOk ? "low" : "medium");
+
+    var geoData = get(dom, ["geo"], {}) || {};
+    var totalWords = Number(get(geoData, ["totalWords"], 0) || 0);
+    var topWordObj = get(geoData, ["topWord"], {}) || {};
+    var topWord = topWordObj.word || "";
+    var topCount = Number(topWordObj.count || 0);
+    var topRatio = Number(topWordObj.ratio || 0);
+    var densityLower = 0.005;
+    var densityUpper = 0.03;
+    var densityDetail;
+    var densityRecommendation;
+    var densityOk;
+    if (totalWords < 100 || !topWord) {
+      densityOk = false;
+      densityDetail = "Not enough copy to evaluate keyword density.";
+      densityRecommendation = "Add more on-page text and reuse a primary keyword naturally.";
+    } else {
+      densityOk = topRatio >= densityLower && topRatio <= densityUpper;
+      var densityStatus = densityOk ? "within" : (topRatio < densityLower ? "below" : "above");
+      densityDetail = "'" + topWord + "' appears " + topCount + "× (" + formatPct(topRatio) + ") across " + totalWords + " words — " + densityStatus + " target 0.5–3%.";
+      densityRecommendation = densityOk ? null : (topRatio < densityLower ? "Reinforce your primary keyword to reach ~0.5–3% density." : "Reduce repetition of '" + topWord + "' to stay below 3% keyword density.");
+    }
+    addCat("seo", 1, densityOk, densityOk ? "Keyword density balanced" : "Keyword density off target", densityRecommendation, densityDetail, densityOk ? "low" : "medium");
 
     // Answer engine optimization
     var answerSignals = get(dom, ["answer"], {}) || {};
@@ -707,12 +878,15 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
 
     var enc = String(get(net, ["root", "headers", "content-encoding"], "")).toLowerCase();
     var compressed = enc.indexOf("br") >= 0 || enc.indexOf("gzip") >= 0 || enc.indexOf("zstd") >= 0;
-    var cacheOk = /max-age=\d{3,}/i.test(String(get(net, ["root", "headers", "cache-control"], "")));
+    var cacheHeader = String(get(net, ["root", "headers", "cache-control"], ""));
+    var cacheInfo = analyzeCacheControl(cacheHeader);
+    var cacheTtlLabel = cacheInfo.ttlSeconds != null ? formatTtl(cacheInfo.ttlSeconds) : "—";
+    var cacheDetail = cacheHeader ? "Cache-Control: " + cacheHeader + " (ttl ~" + cacheTtlLabel + ")" : "No Cache-Control header detected.";
 
     addCat("performance", 5, !!compressed, "Compression enabled (gzip/br)", "Enable Brotli/gzip (or zstd) on HTML and static assets.", compressed ? "Content-Encoding header indicates compression ('" + enc + "')." : "No compression header detected on initial response.", compressed ? "low" : "medium");
 
-    var cacheHeader = String(get(net, ["root", "headers", "cache-control"], ""));
-    addCat("performance", 5, !!cacheOk, "Caching headers present", "Set Cache-Control with max-age >= 1000 for cacheable assets.", cacheHeader ? "Cache-Control: " + cacheHeader : "No Cache-Control header detected.", cacheOk ? "low" : "medium");
+    var cacheFix = cacheInfo.cacheable ? "" : "Set Cache-Control with max-age >= 1000 for cacheable assets.";
+    addCat("performance", 5, cacheInfo.cacheable, cacheInfo.cacheable ? "Caching enabled (" + cacheTtlLabel + ")" : "Caching headers weak/missing", cacheFix, cacheDetail, cacheInfo.cacheable ? "low" : "medium");
 
     var preconnectCount = get(dom, ["resourceHints", "preconnect"], 0) || 0;
     addCat("performance", 3, preconnectCount > 0, "Preconnect present", "Add <link rel=\"preconnect\"> to critical third-party origins.", preconnectCount > 0 ? preconnectCount + " preconnect hint(s) found." : "No preconnect hints detected.", preconnectCount > 0 ? "low" : "low");
@@ -824,6 +998,13 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
       keyChecks: keyChecks,
       recommendations: recommendations,
       lighthouse: lighthouseStore,
+      caching: {
+        cacheControl: cacheHeader,
+        ttlSeconds: cacheInfo.ttlSeconds,
+        sharedTtlSeconds: cacheInfo.sharedTtlSeconds,
+        cacheable: cacheInfo.cacheable,
+        policy: cacheInfo.policy
+      },
       dom: dom,
       net: net
     };
