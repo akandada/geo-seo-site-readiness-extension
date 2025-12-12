@@ -320,6 +320,73 @@ function renderPageCacheAnalysis(caching) {
   }
 }
 
+function renderHtmlStructure(structure) {
+  var card = $("htmlStructureCard");
+  var list = $("htmlStructureList");
+
+  if (!card || !list) return;
+  if (!structure) {
+    card.style.display = "none";
+    return;
+  }
+
+  card.style.display = "block";
+  list.innerHTML = "";
+
+  function addItem(summary, detail) {
+    if (!summary) return;
+    var li = document.createElement("li");
+    var summaryDiv = document.createElement("div");
+    summaryDiv.className = "summary";
+    summaryDiv.textContent = summary;
+    li.appendChild(summaryDiv);
+    if (detail) {
+      var detailDiv = document.createElement("div");
+      detailDiv.className = "detail";
+      detailDiv.textContent = detail;
+      li.appendChild(detailDiv);
+    }
+    list.appendChild(li);
+  }
+
+  var title = structure.title || "";
+  addItem(title ? "Title tag present" : "Title tag missing", title ? "Length: " + title.length + " characters." : "No <title> element detected.");
+
+  var metaDescription = structure.metaDescription || "";
+  addItem(metaDescription ? "Meta description present" : "Meta description missing", metaDescription ? "Length: " + metaDescription.length + " characters." : "No <meta name=\"description\"> tag detected.");
+
+  var headingCounts = structure.headingCounts || {};
+  var headingTotal = Number(structure.headingTotal || 0);
+  var headingParts = [];
+  ["h1", "h2", "h3", "h4", "h5", "h6"].forEach(function(level){
+    var count = Number(headingCounts[level] || 0);
+    if (count > 0) headingParts.push(level.toUpperCase() + "×" + count);
+  });
+  addItem(headingTotal > 0 ? "Headings detected" : "Headings missing", headingTotal > 0 ? "Headings found: " + headingParts.join(", ") + "." : "No heading tags detected.");
+
+  var listCount = Number(structure.listCount || 0);
+  var listItemCount = Number(structure.listItemCount || 0);
+  addItem(listCount > 0 ? "List markup present" : "List markup missing", listCount > 0 ? listCount + " list(s) with " + listItemCount + " item(s)." : "No <ul>/<ol> lists detected.");
+
+  var altMissing = Number(structure.imagesMissingAlt || 0);
+  addItem(altMissing === 0 ? "Image alt attributes present" : "Images missing alt text", altMissing === 0 ? "All images include alt text." : altMissing + " image(s) missing alt attributes.");
+
+  var canonical = structure.canonicalHref || "";
+  addItem(canonical ? "Canonical link detected" : "Canonical link missing", canonical ? canonical : "No <link rel=\"canonical\"> element detected.");
+
+  var robotsMeta = structure.robotsMeta || "";
+  addItem(robotsMeta ? "Robots meta present" : "Robots meta missing", robotsMeta ? "Content: " + robotsMeta + "." : "No <meta name=\"robots\"> tag detected.");
+
+  var schemaCount = Number(structure.schemaCount || 0);
+  addItem(schemaCount > 0 ? "Structured data present" : "Structured data missing", schemaCount > 0 ? schemaCount + " JSON-LD script tag(s) found." : "No JSON-LD structured data detected.");
+
+  var tableCount = Number(structure.tableCount || 0);
+  addItem(tableCount > 0 ? "Table elements detected" : "Table elements missing", tableCount > 0 ? tableCount + " <table> element(s) detected." : "No <table> elements detected.");
+
+  var iframeCount = Number(structure.iframeCount || 0);
+  addItem(iframeCount === 0 ? "No iframes embedded" : "Iframes embedded", iframeCount === 0 ? "No <iframe> elements detected." : iframeCount + " iframe(s) detected; ensure embeds are crawlable and performant.");
+}
+
 function renderHeader(data) {
   var urlFromDom = data.dom && data.dom.url ? data.dom.url : "";
   var urlFromNet = data.net && data.net.url ? data.net.url : "";
@@ -375,6 +442,7 @@ function renderHeader(data) {
 
     renderCaching(data.caching, data.dom && data.dom.images ? data.dom.images : null);
     renderPageCacheAnalysis(data.caching);
+    renderHtmlStructure(data.dom && data.dom.htmlStructure ? data.dom.htmlStructure : null);
 
     renderPagination(data.net && data.net.paginationDerived ? data.net.paginationDerived : null);
 
