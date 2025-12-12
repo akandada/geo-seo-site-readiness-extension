@@ -17,6 +17,33 @@ function imgWithoutAlt() { return qa('img').filter(img => !(img.getAttribute('al
 function langOk() { return !!(document.documentElement.getAttribute('lang') || '').trim() }
 function htmlLang() { return (document.documentElement.getAttribute('lang') || '').trim(); }
 function canonical() { return q('link[rel="canonical"]')?.href || '' }
+function hreflangLinks() {
+  try {
+    var links = qa('link[rel="alternate"][hreflang]');
+    var langs = {};
+    var samples = [];
+    for (var i = 0; i < links.length; i++) {
+      var link = links[i];
+      var lang = (link.getAttribute('hreflang') || '').trim().toLowerCase();
+      var href = (link.getAttribute('href') || '').trim();
+      if (!lang || !href) continue;
+      langs[lang] = (langs[lang] || 0) + 1;
+      if (samples.length < 5) {
+        samples.push({ lang: lang, href: href });
+      }
+    }
+    var uniqueLangs = Object.keys(langs);
+    var duplicateLangs = uniqueLangs.filter(function (l) { return langs[l] > 1; });
+    return {
+      count: links.length,
+      uniqueLangs: uniqueLangs,
+      duplicateLangs: duplicateLangs,
+      samples: samples
+    };
+  } catch (e) {
+    return { count: 0, uniqueLangs: [], duplicateLangs: [], samples: [] };
+  }
+}
 function mainWordCount() { const clone = document.body.cloneNode(true); clone.querySelectorAll('script,style,nav,footer,header,form,aside').forEach(n => n.remove()); const text = (clone.innerText || '').replace(/\s+/g, ' ').trim(); return text.split(' ').filter(Boolean).length; }
 const GEO_STOPWORDS = new Set(['the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'i', 'it', 'for', 'not', 'on', 'with', 'he', 'as', 'you', 'do', 'at', 'this', 'but', 'his', 'by', 'from', 'they', 'we', 'say', 'her', 'she', 'or', 'an', 'will', 'my', 'one', 'all', 'would', 'there', 'their', 'is', 'are', 'was', 'were', 'had', 'has', 'were', 'your', 'can', 'our', 'more', 'about']);
 function countSyllables(word) {
@@ -1023,6 +1050,7 @@ if (!window.__SRA_CONTENT_ACTIVE__) {
             titleLength: pageTitle().length,
             metaDescriptionLength: metaDescription().length,
             htmlLang: htmlLang(),
+            hreflang: hreflangLinks(),
             titleOk: titleOk(),
             metaDescOk: metaDescOk(),
             h1Count: h1Count(),
