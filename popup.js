@@ -527,6 +527,12 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
       return Math.round(ttl) + "s";
     }
 
+    function formatPct(val) {
+      var num = Number(val || 0);
+      if (!(num === num)) return "0%";
+      return Math.round(num * 1000) / 10 + "%";
+    }
+
     function analyzeCacheControl(headerVal) {
       var raw = String(headerVal || "");
       var low = raw.toLowerCase();
@@ -665,6 +671,29 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
     var metaDescOkVal = !!get(dom, ["metaDescOk"], false);
     var metaDescLength = Number(get(dom, ["metaDescriptionLength"], 0) || 0);
     addCat("seo", 2, metaDescOkVal, "Meta description OK (50–160)", "Write a meta description between 50–160 characters.", metaDescLength ? "Meta description length: " + metaDescLength + " characters." : "Meta description missing or empty.", metaDescOkVal ? "low" : "medium");
+
+    var geoData = get(dom, ["geo"], {}) || {};
+    var totalWords = Number(get(geoData, ["totalWords"], 0) || 0);
+    var topWordObj = get(geoData, ["topWord"], {}) || {};
+    var topWord = topWordObj.word || "";
+    var topCount = Number(topWordObj.count || 0);
+    var topRatio = Number(topWordObj.ratio || 0);
+    var densityLower = 0.005;
+    var densityUpper = 0.03;
+    var densityDetail;
+    var densityRecommendation;
+    var densityOk;
+    if (totalWords < 100 || !topWord) {
+      densityOk = false;
+      densityDetail = "Not enough copy to evaluate keyword density.";
+      densityRecommendation = "Add more on-page text and reuse a primary keyword naturally.";
+    } else {
+      densityOk = topRatio >= densityLower && topRatio <= densityUpper;
+      var densityStatus = densityOk ? "within" : (topRatio < densityLower ? "below" : "above");
+      densityDetail = "'" + topWord + "' appears " + topCount + "× (" + formatPct(topRatio) + ") across " + totalWords + " words — " + densityStatus + " target 0.5–3%.";
+      densityRecommendation = densityOk ? null : (topRatio < densityLower ? "Reinforce your primary keyword to reach ~0.5–3% density." : "Reduce repetition of '" + topWord + "' to stay below 3% keyword density.");
+    }
+    addCat("seo", 2, densityOk, densityOk ? "Keyword density balanced" : "Keyword density off target", densityRecommendation, densityDetail, densityOk ? "low" : "medium");
 
     // Answer engine optimization
     var answerSignals = get(dom, ["answer"], {}) || {};
