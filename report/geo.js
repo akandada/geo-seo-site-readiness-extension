@@ -32,6 +32,15 @@ function buildGeoReportEntries(geo) {
     entries.push({ label: "Top term", detail: "No dominant keyword detected." });
   }
 
+  if (totalWords >= 100 && topWord) {
+    var densityStatus = "Balanced";
+    if (topRatio < 0.005) densityStatus = "Low focus";
+    else if (topRatio > 0.03) densityStatus = "High (possible stuffing)";
+    entries.push({ label: "Keyword density", detail: densityStatus + " — '" + topWord + "' at " + formatPercent(topRatio, 1) + " across " + totalWords + " words (target 0.5–3%)." });
+  } else {
+    entries.push({ label: "Keyword density", detail: "Not enough copy to evaluate keyword focus." });
+  }
+
   var readability = geo.readability || {};
   var sentences = Number(readability.sentences || 0);
   if (sentences > 0) {
