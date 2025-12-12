@@ -44,6 +44,46 @@ function hreflangLinks() {
     return { count: 0, uniqueLangs: [], duplicateLangs: [], samples: [] };
   }
 }
+function collectHtmlStructureSignals() {
+  try {
+    var h1 = qa('h1').length;
+    var h2 = qa('h2').length;
+    var h3 = qa('h3').length;
+    var h4 = qa('h4').length;
+    var h5 = qa('h5').length;
+    var h6 = qa('h6').length;
+    var headingCounts = { h1: h1, h2: h2, h3: h3, h4: h4, h5: h5, h6: h6 };
+    return {
+      title: pageTitle(),
+      metaDescription: metaDescription(),
+      headingCounts: headingCounts,
+      headingTotal: h1 + h2 + h3 + h4 + h5 + h6,
+      imagesMissingAlt: imgWithoutAlt(),
+      canonicalHref: canonical(),
+      robotsMeta: metaRobots(),
+      schemaCount: countJsonLd(),
+      tableCount: qa('table').length,
+      iframeCount: qa('iframe').length,
+      listCount: qa('ul, ol').length,
+      listItemCount: qa('li').length
+    };
+  } catch (e) {
+    return {
+      title: '',
+      metaDescription: '',
+      headingCounts: { h1: 0, h2: 0, h3: 0, h4: 0, h5: 0, h6: 0 },
+      headingTotal: 0,
+      imagesMissingAlt: 0,
+      canonicalHref: '',
+      robotsMeta: '',
+      schemaCount: 0,
+      tableCount: 0,
+      iframeCount: 0,
+      listCount: 0,
+      listItemCount: 0
+    };
+  }
+}
 function mainWordCount() { const clone = document.body.cloneNode(true); clone.querySelectorAll('script,style,nav,footer,header,form,aside').forEach(n => n.remove()); const text = (clone.innerText || '').replace(/\s+/g, ' ').trim(); return text.split(' ').filter(Boolean).length; }
 const GEO_STOPWORDS = new Set(['the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'i', 'it', 'for', 'not', 'on', 'with', 'he', 'as', 'you', 'do', 'at', 'this', 'but', 'his', 'by', 'from', 'they', 'we', 'say', 'her', 'she', 'or', 'an', 'will', 'my', 'one', 'all', 'would', 'there', 'their', 'is', 'are', 'was', 'were', 'had', 'has', 'were', 'your', 'can', 'our', 'more', 'about']);
 function countSyllables(word) {
@@ -1058,6 +1098,7 @@ if (!window.__SRA_CONTENT_ACTIVE__) {
             langOk: langOk(),
             canonical: canonical(),
             mainWordCount: mainWordCount(),
+            htmlStructure: collectHtmlStructureSignals(),
             resourceHints: resourceHints(),
             images: imageStats(),
             mediaAssets: await collectMediaAssets(),

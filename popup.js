@@ -689,6 +689,50 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
     var metaDescLength = Number(get(dom, ["metaDescriptionLength"], 0) || 0);
     addCat("seo", 2, metaDescOkVal, "Meta description OK (50–160)", "Write a meta description between 50–160 characters.", metaDescLength ? "Meta description length: " + metaDescLength + " characters." : "Meta description missing or empty.", metaDescOkVal ? "low" : "medium");
 
+    var htmlStructure = get(dom, ["htmlStructure"], {}) || {};
+
+    var structureTitleLength = (get(htmlStructure, ["title"], "") || "").length;
+    var titlePresenceDetail = structureTitleLength ? "Title length: " + structureTitleLength + " characters." : "No <title> element detected.";
+    addCat("seo", 0, structureTitleLength > 0, structureTitleLength > 0 ? "Title tag detected" : "Title tag missing", null, titlePresenceDetail, structureTitleLength > 0 ? "low" : "medium");
+
+    var structureMetaLength = (get(htmlStructure, ["metaDescription"], "") || "").length;
+    var metaPresenceDetail = structureMetaLength ? "Meta description length: " + structureMetaLength + " characters." : "No <meta name=\"description\"> tag detected.";
+    addCat("seo", 0, structureMetaLength > 0, structureMetaLength > 0 ? "Meta description detected" : "Meta description missing", null, metaPresenceDetail, structureMetaLength > 0 ? "low" : "medium");
+
+    var headingCounts = get(htmlStructure, ["headingCounts"], {}) || {};
+    var headingTotal = Number(get(htmlStructure, ["headingTotal"], 0) || 0);
+    var headingLevelParts = [];
+    ["h1", "h2", "h3", "h4", "h5", "h6"].forEach(function (level) {
+      var count = Number(get(headingCounts, [level], 0) || 0);
+      if (count > 0) headingLevelParts.push(level.toUpperCase() + "×" + count);
+    });
+    var headingDetail = headingTotal ? "Headings found: " + headingLevelParts.join(", ") + "." : "No heading tags detected.";
+    addCat("seo", 0, headingTotal > 0, headingTotal > 0 ? "Heading tags detected" : "Heading tags missing", "Add semantic headings (H1–H6) to outline the page hierarchy.", headingDetail, headingTotal > 0 ? "low" : "medium");
+
+    var structureAltMissing = Number(get(htmlStructure, ["imagesMissingAlt"], 0) || 0);
+    var altDetail = structureAltMissing === 0 ? "All images include alt text." : structureAltMissing + " image(s) missing alt text.";
+    addCat("seo", 0, structureAltMissing === 0, structureAltMissing === 0 ? "Image alt attributes present" : "Images missing alt text", null, altDetail, structureAltMissing === 0 ? "low" : "medium");
+
+    var robotsMetaVal = String(get(htmlStructure, ["robotsMeta"], "") || "");
+    var robotsMetaPresent = !!robotsMetaVal;
+    var robotsDetail = robotsMetaPresent ? "Robots meta content: " + robotsMetaVal + "." : "No <meta name=\"robots\"> tag detected.";
+    addCat("seo", 0, robotsMetaPresent, robotsMetaPresent ? "Robots meta tag detected" : "Robots meta tag missing", robotsMetaPresent ? null : "Add a <meta name=\"robots\"> tag to control crawling and indexing directives.", robotsDetail, robotsMetaPresent ? "low" : "medium");
+
+    var tableCount = Number(get(htmlStructure, ["tableCount"], 0) || 0);
+    var tableDetail = tableCount ? tableCount + " table element(s) detected." : "No <table> elements detected.";
+    addCat("seo", 0, tableCount > 0, tableCount > 0 ? "Table tags detected" : "Table tags missing", tableCount > 0 ? null : "Use <table> markup when presenting structured datasets.", tableDetail, tableCount > 0 ? "low" : "medium");
+
+    var iframeCount = Number(get(htmlStructure, ["iframeCount"], 0) || 0);
+    var iframeOk = iframeCount === 0;
+    var iframeDetail = iframeOk ? "No iframes detected." : iframeCount + " iframe(s) detected; ensure embeds do not hurt performance or crawlability.";
+    addCat("seo", 0, iframeOk, iframeOk ? "No iframes embedded" : "Iframes embedded", iframeOk ? null : "Limit or optimize <iframe> embeds to avoid performance slowdowns.", iframeDetail, iframeOk ? "low" : "medium");
+
+    var listCount = Number(get(htmlStructure, ["listCount"], 0) || 0);
+    var listItemCount = Number(get(htmlStructure, ["listItemCount"], 0) || 0);
+    var listOk = listCount > 0 && listItemCount > 0;
+    var listDetail = listOk ? listCount + " list(s) and " + listItemCount + " list item(s) detected." : "No <ul>/<ol> lists detected.";
+    addCat("seo", 0, listOk, listOk ? "List tags detected" : "List tags missing", listOk ? null : "Use <ul>/<ol> lists for scannable bullets that can surface in snippets.", listDetail, listOk ? "low" : "medium");
+
     var geoData = get(dom, ["geo"], {}) || {};
     var totalWords = Number(get(geoData, ["totalWords"], 0) || 0);
     var topWordObj = get(geoData, ["topWord"], {}) || {};
