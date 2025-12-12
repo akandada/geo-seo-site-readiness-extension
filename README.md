@@ -65,6 +65,7 @@ SEO checks target baseline discoverability signals:
 * **Title length 10–70 chars (3 pts)** – Ensures the title is concise yet descriptive. 【F:popup.js†L578-L582】
 * **Meta description 50–160 chars (2 pts)** – Validates snippet-length guidance for SERP previews. 【F:popup.js†L584-L588】
 * **Keyword density 0.5–3% (2 pts)** – Counts on-page words (excluding stopwords), finds the most common keyword, and requires at least 100 words before grading. Pages score when the top term’s share of total words lands between 0.5–3%; below this window suggests weak topical focus, while above signals possible stuffing. 【F:content.js†L40-L83】【F:popup.js†L662-L698】
+* **Hreflang annotations (2 pts)** – Surfaces `<link rel="alternate" hreflang="...">` tags, summarizes the locales found, and flags duplicate language codes. Pages lose points if hreflang is missing or contains duplicates, with remediation text guiding how to add or deduplicate entries. 【F:content.js†L20-L37】【F:popup.js†L667-L682】
 
 ### Answer Engine (20 pts)
 
