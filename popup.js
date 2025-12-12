@@ -596,7 +596,7 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
     var sitemapDetail = sitemapExists ?
       "robots.txt references a sitemap or /sitemap.xml responded." :
       "No sitemap reference found in robots.txt and /sitemap.xml was unreachable.";
-    addCat("seo", 6, sitemapExists, "Sitemap discoverable", "Expose /sitemap.xml (and reference it in robots.txt).", sitemapDetail, sitemapExists ? "low" : "high");
+    addCat("seo", 5, sitemapExists, "Sitemap discoverable", "Expose /sitemap.xml (and reference it in robots.txt).", sitemapDetail, sitemapExists ? "low" : "high");
 
     var aiTxtOk = get(net, ["aiTxt", "exists"], false) === true;
     var aiTxtStatus = get(net, ["aiTxt", "status"], 0);
@@ -652,17 +652,34 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
     }
 
     var indexDetail = directiveDetail(indexAllowed, "noindex", xRobots.indexOf("noindex") >= 0, metaRobots.indexOf("noindex") >= 0);
-    addCat("seo", 6, indexAllowed, "Indexing allowed", "Remove noindex directives so search engines can index the page.", indexDetail, indexAllowed ? "low" : "high");
+    addCat("seo", 5, indexAllowed, "Indexing allowed", "Remove noindex directives so search engines can index the page.", indexDetail, indexAllowed ? "low" : "high");
 
     var aiDetail = directiveDetail(aiUseAllowed, "noai", xRobots.indexOf("noai") >= 0, metaRobots.indexOf("noai") >= 0);
     addCat("geo", 0, aiUseAllowed, aiUseAllowed ? "AI use allowed" : "AI use blocked via noai", "Remove noai directives if AI access is intended.", aiDetail, aiUseAllowed ? "low" : "high");
     var geoPenalty = aiUseAllowed ? 0 : 6;
 
     var jsonLdCount = get(dom, ["jsonLdCount"], 0) || 0;
-    addCat("seo", 5, jsonLdCount > 0, "JSON-LD present", "Add schema.org JSON-LD (WebSite/Article/FAQ/etc).", jsonLdCount > 0 ? jsonLdCount + " JSON-LD script tag(s) found." : "No JSON-LD script tags detected.", jsonLdCount > 0 ? "low" : "medium");
+    addCat("seo", 4, jsonLdCount > 0, "JSON-LD present", "Add schema.org JSON-LD (WebSite/Article/FAQ/etc).", jsonLdCount > 0 ? jsonLdCount + " JSON-LD script tag(s) found." : "No JSON-LD script tags detected.", jsonLdCount > 0 ? "low" : "medium");
 
     var canonicalHref = get(dom, ["canonical"], "");
     addCat("seo", 3, !!canonicalHref, "Canonical present", "Add <link rel=\"canonical\"> to highlight the preferred URL.", canonicalHref ? "Canonical URL: " + canonicalHref : "No canonical link element detected.", canonicalHref ? "low" : "medium");
+
+    var hreflangInfo = get(dom, ["hreflang"], {}) || {};
+    var hreflangCount = Number(hreflangInfo.count || 0);
+    var hreflangLangs = hreflangInfo.uniqueLangs || [];
+    var hreflangDupes = hreflangInfo.duplicateLangs || [];
+    var hreflangOk = hreflangCount > 0 && hreflangDupes.length === 0;
+    var hreflangPreview = hreflangLangs.slice(0, 5).join(", ");
+    var hreflangDetail = hreflangCount ?
+      "Detected " + hreflangCount + " hreflang link(s) across " + hreflangLangs.length + " locale(s)" + (hreflangPreview ? ": " + hreflangPreview : "") + "." :
+      "No hreflang alternate links detected.";
+    if (hreflangDupes.length) {
+      hreflangDetail += " Duplicate entries for: " + hreflangDupes.slice(0, 3).join(", ") + ".";
+    }
+    var hreflangRecommendation = hreflangOk ? null : (hreflangCount === 0 ?
+      "Add <link rel=\"alternate\" hreflang=\"...\"> tags for each language/region version." :
+      "Deduplicate hreflang tags so each locale points to a single canonical URL.");
+    addCat("seo", 2, hreflangOk, hreflangOk ? "Hreflang annotations present" : "Hreflang annotations missing or duplicated", hreflangRecommendation, hreflangDetail, hreflangOk ? "low" : "medium");
 
     var titleOkVal = !!get(dom, ["titleOk"], false);
     var titleLength = Number(get(dom, ["titleLength"], 0) || 0);
@@ -693,7 +710,7 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
       densityDetail = "'" + topWord + "' appears " + topCount + "× (" + formatPct(topRatio) + ") across " + totalWords + " words — " + densityStatus + " target 0.5–3%.";
       densityRecommendation = densityOk ? null : (topRatio < densityLower ? "Reinforce your primary keyword to reach ~0.5–3% density." : "Reduce repetition of '" + topWord + "' to stay below 3% keyword density.");
     }
-    addCat("seo", 2, densityOk, densityOk ? "Keyword density balanced" : "Keyword density off target", densityRecommendation, densityDetail, densityOk ? "low" : "medium");
+    addCat("seo", 1, densityOk, densityOk ? "Keyword density balanced" : "Keyword density off target", densityRecommendation, densityDetail, densityOk ? "low" : "medium");
 
     // Answer engine optimization
     var answerSignals = get(dom, ["answer"], {}) || {};
