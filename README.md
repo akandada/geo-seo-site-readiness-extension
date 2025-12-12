@@ -7,7 +7,8 @@ Site Quality Index is a Chrome extension that evaluates a page's performance, cr
 ## Features
 
 - **Performance heuristics** – Observes Largest Contentful Paint (LCP), Cumulative Layout Shift (CLS), and Interaction to Next Paint (INP), scores them with Lighthouse Core Web Vitals curves, and inspects resource hints, compression, caching, and image/font usage. 【F:content.js†L213-L409】【F:content.js†L775-L806】【F:popup.js†L642-L733】【F:lighthouse_metrics.js†L1-L118】
-- **SEO and structured data checks** – Validates sitemap discoverability, canonical tags, title/meta description length, and JSON-LD presence. 【F:popup.js†L513-L588】
+- **SEO and structured data checks** – Validates sitemap discoverability, canonical tags, title/meta description length, and JSON-LD presence. 【F:popup.js†L599-L701】
+- **HTML structure checklist** – Surfaces core on-page tags such as headings, alt text, canonical/robots directives, schema, tables, iframes, and lists to confirm crawlable structure. 【F:content.js†L16-L114】【F:popup.js†L699-L757】
 - **Answer engine optimization** – Flags FAQ/Q&A/HowTo schema, speakable markup, question-style modules, summaries, and authoritative citations that support generative answer surfaces. 【F:content.js†L150-L331】【F:popup.js†L589-L626】
 - **GEO / LLM readiness** – Fetches `robots.txt`, `ai.txt`, `llms.txt`, and evaluates whether major AI crawlers are allowed, while reporting AI policy directives that block ingestion. 【F:service_worker.js†L220-L423】【F:popup.js†L507-L552】
 - **GEO content deep dive** – Captures word counts, readability, structure, outbound references, quotes, and stats for the detailed report view. 【F:content.js†L19-L146】【F:report.js†L962-L1033】
@@ -64,6 +65,7 @@ SEO checks target baseline discoverability signals:
 * **Canonical URL defined (3 pts)** – Looks for `<link rel="canonical">` to avoid duplicate-index issues. 【F:popup.js†L573-L576】
 * **Title length 10–70 chars (3 pts)** – Ensures the title is concise yet descriptive. 【F:popup.js†L578-L582】
 * **Meta description 50–160 chars (2 pts)** – Validates snippet-length guidance for SERP previews. 【F:popup.js†L584-L588】
+* **HTML structure tags (informational)** – Surfaces title/meta presence, heading coverage, alt text gaps, canonical/robots directives, schema counts, tables, iframes, and list markup to gauge crawlable layout. 【F:content.js†L16-L114】【F:popup.js†L699-L757】
 * **Keyword density 0.5–3% (2 pts)** – Counts on-page words (excluding stopwords), finds the most common keyword, and requires at least 100 words before grading. Pages score when the top term’s share of total words lands between 0.5–3%; below this window suggests weak topical focus, while above signals possible stuffing. 【F:content.js†L40-L83】【F:popup.js†L662-L698】
 * **Hreflang annotations (2 pts)** – Surfaces `<link rel="alternate" hreflang="...">` tags, summarizes the locales found, and flags duplicate language codes. Pages lose points if hreflang is missing or contains duplicates, with remediation text guiding how to add or deduplicate entries. 【F:content.js†L20-L37】【F:popup.js†L667-L682】
 
