@@ -674,39 +674,6 @@ async function collectMediaAssets() {
     return [];
   }
 }
-function isPaginationHref(href) {
-  if (!href) return false;
-  var trimmed = href.trim();
-  if (!trimmed) return false;
-  if (/[?&](?:page|paged|page_no|page_num|pageno|pagenum|pageindex|pagenumber|p|pg|pagination|start|offset|skip|from|begin)=\d+/i.test(trimmed)) return true;
-  if (/[?&][a-z0-9_-]*page[a-z0-9_-]*=\d+/i.test(trimmed)) return true;
-  if (/\/(?:page|paged|p|pg|pagination)[-_/]?\d+(?:[/?#]|$)/i.test(trimmed)) return true;
-  return false;
-}
-function discoverPagination() {
-  try {
-    var candidates = qa('a[href]');
-    var hrefs = [];
-    for (var i = 0; i < candidates.length; i++) {
-      var a = candidates[i];
-      if (!a) continue;
-      var h = a.getAttribute('href');
-      if (isPaginationHref(h)) hrefs.push(h.trim());
-      if (hrefs.length >= 20) break;
-    }
-    var relLinks = qa('link[rel="next"], link[rel="prev"]');
-    for (var j = 0; j < relLinks.length; j++) {
-      var relHref = relLinks[j] && relLinks[j].getAttribute('href');
-      if (isPaginationHref(relHref)) hrefs.push(relHref.trim());
-    }
-    var unique = Array.from(new Set(hrefs)).slice(0, 10);
-    var navVisible = !!q('nav[aria-label*="pagination" i], ul.pagination, .pagination, a[rel="next"], a[rel="prev"]');
-    var relNextPrev = relLinks.length > 0;
-    return { visible: navVisible, relNextPrev: relNextPrev, links: unique };
-  } catch (e) {
-    return { visible: false, relNextPrev: false, links: [] };
-  }
-}
 function describeNodeLabel(node) {
   try {
     const tag = (node.tagName || '').toLowerCase();
@@ -1073,14 +1040,13 @@ function collectGtmSignals() {
 }
 
 function collectWebVitalsOnce() { return new Promise(resolve => { const out = { lcp: null, cls: 0, inp: null }; try { const poLcp = new PerformanceObserver((list) => { const entries = list.getEntries(); const last = entries[entries.length - 1]; if (last) out.lcp = Math.round(last.startTime); }); poLcp.observe({ type: 'largest-contentful-paint', buffered: true }); const poCls = new PerformanceObserver((list) => { for (const e of list.getEntries()) { if (!e.hadRecentInput) out.cls += e.value; } }); poCls.observe({ type: 'layout-shift', buffered: true }); const poInp = new PerformanceObserver((list) => { for (const e of list.getEntries()) { const dur = e.duration; if (!out.inp || dur > out.inp) out.inp = Math.round(dur); } }); poInp.observe({ type: 'event', buffered: true, durationThreshold: 16 }); setTimeout(() => resolve(out), 2500); } catch { resolve(out); } }); }
-async function simulateInfiniteScroll() { const beforeCount = document.body.getElementsByTagName('*').length; const targetY = document.documentElement.scrollHeight - window.innerHeight - 5; window.scrollTo(0, Math.max(0, targetY)); const appended = await new Promise(res => { const start = Date.now(); const check = () => { const after = document.body.getElementsByTagName('*').length; if (after - beforeCount >= 20) { res(true); } else if (Date.now() - start > 2000) { res(false); } else { requestAnimationFrame(check); } }; requestAnimationFrame(check); }); return { appendedOnScroll: appended }; }
 if (!window.__SRA_CONTENT_ACTIVE__) {
   window.__SRA_CONTENT_ACTIVE__ = true;
   chrome.runtime.onMessage.addListener(function (msg, _sender, sendResponse) {
     if (msg && msg.type === 'COLLECT_DOM_INFO') {
       (async () => {
         try {
-          const [perf, infinite] = await Promise.all([collectWebVitalsOnce(), simulateInfiniteScroll()]);
+          const perf = await collectWebVitalsOnce();
           const info = {
             url: location.href,
             jsonLdCount: countJsonLd(),
@@ -1104,12 +1070,10 @@ if (!window.__SRA_CONTENT_ACTIVE__) {
             mediaAssets: await collectMediaAssets(),
             gtm: collectGtmSignals(),
             fonts: fontStats(),
-            pagination: discoverPagination(),
             components: collectComponentReports(),
             geo: analyzeGeoContent(),
             answer: detectAnswerEngineSignals(),
-            perf,
-            infinite
+            perf
           };
           sendResponse(info);
         } catch (e) { sendResponse({}); }

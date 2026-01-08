@@ -1,6 +1,5 @@
 // service_worker.js — MV3 background (compat mode)
 // - Strict ai.txt / llms.txt detection (no HTML/redirect false-positives)
-// - Pagination inference from sitemap(s) to validate crawlable "page 2"
 
 /////////////////////////////
 // Utilities and fetchers  //
@@ -239,145 +238,6 @@ async function discoverSitemapUrls(origin, robotsText){
   return list;
 }
 
-// Expand sitemap indexes (sitemap of sitemaps) in a shallow way
-async function expandSitemapsOnce(sitemapUrls){
-  var allLocs = [];
-  var childSitemaps = [];
-
-  for (var i=0;i<sitemapUrls.length;i++){
-    var u = sitemapUrls[i];
-    var res = await fetchText(u);
-    if (!res.ok) continue;
-    var locs = extractLocsFromSitemap(res.text);
-    // heuristic: many .xml(.gz) locs => likely a sitemap index
-    var xmlLinks = locs.filter(function(l){ return /\.xml(\.gz)?$/i.test(l); });
-    if (xmlLinks.length >= Math.min(5, locs.length)) {
-      childSitemaps = childSitemaps.concat(xmlLinks);
-    } else {
-      allLocs = allLocs.concat(locs);
-    }
-  }
-
-  // fetch a subset of child sitemaps to avoid huge crawls
-  var cap = 10;
-  for (var j=0; j<childSitemaps.length && j<cap; j++){
-    var s = childSitemaps[j];
-    var res2 = await fetchText(s);
-    if (!res2.ok) continue;
-    var locs2 = extractLocsFromSitemap(res2.text);
-    allLocs = allLocs.concat(locs2);
-  }
-
-  // de-dupe and cap volume
-  var uniq = Array.from(new Set(allLocs));
-  if (uniq.length > 3000) uniq = uniq.slice(0, 3000);
-  return uniq;
-}
-
-// Infer pagination patterns from URL list
-function inferPaginationFromUrls(urls){
-  var patterns = { queryParams: {}, pathSegments: {} };
-  if (!urls || !urls.length) return patterns;
-
-  function addQP(name, val){
-    if (!patterns.queryParams[name]) patterns.queryParams[name] = { values: {}, step: null };
-    patterns.queryParams[name].values[val] = true;
-  }
-  function setPathKey(key){ patterns.pathSegments[key] = true; }
-
-  urls.forEach(function(u){
-    try {
-      var url = new URL(u);
-      // query params e.g., ?page=2, ?offset=20
-      url.searchParams.forEach(function(val, key){
-        var v = parseInt(val, 10);
-        if (!isNaN(v) && /^(page|p|pg|pagination|offset|start|skip|from|begin)$/i.test(key)) {
-          addQP(key.toLowerCase(), v);
-        }
-      });
-      // path-based pagination e.g., /page/2 or /p/3
-      var segs = url.pathname.split('/').filter(Boolean);
-      for (var i=0;i<segs.length-1;i++){
-        var seg = segs[i].toLowerCase();
-        var nxt = segs[i+1];
-        var n = parseInt(nxt, 10);
-        if (!isNaN(n) && (seg === 'page' || seg === 'p')) {
-          setPathKey(seg);
-        }
-      }
-    } catch (e) {}
-  });
-
-  // Estimate steps for query params (e.g., offset 0 -> 20 -> 40 => step 20)
-  Object.keys(patterns.queryParams).forEach(function(name){
-    var values = Object.keys(patterns.queryParams[name].values)
-      .map(function(v){ return parseInt(v,10); })
-      .sort(function(a,b){ return a-b; });
-    var step = null;
-    for (var i=1;i<values.length;i++){
-      var diff = values[i] - values[i-1];
-      if (diff > 0) { step = diff; break; }
-    }
-    patterns.queryParams[name].step = step || 20; // default guess
-  });
-
-  return patterns;
-}
-
-// Build "page 2" guesses for the *current* URL using inferred patterns
-function buildPage2Guesses(currentUrl, patterns){
-  var out = [];
-  try {
-    var base = new URL(currentUrl);
-
-    // Query param patterns
-    Object.keys(patterns.queryParams || {}).forEach(function(name){
-      var info = patterns.queryParams[name];
-      var u = new URL(base.toString());
-      if (u.searchParams.has(name)) {
-        var prev = parseInt(u.searchParams.get(name), 10);
-        if (isNaN(prev)) prev = (name==='offset'||name==='start'||name==='skip'||name==='from'||name==='begin') ? 0 : 1;
-        var nextVal = (name==='offset'||name==='start'||name==='skip'||name==='from'||name==='begin')
-          ? (prev + (info.step || 20))
-          : (prev + 1);
-        u.searchParams.set(name, String(nextVal));
-      } else {
-        var initVal = (name==='offset'||name==='start'||name==='skip'||name==='from'||name==='begin')
-          ? (info.step || 20)
-          : 2;
-        u.searchParams.set(name, String(initVal));
-      }
-      out.push(u.toString());
-    });
-
-    // Path segment patterns (/page/2 or /p/2)
-    Object.keys(patterns.pathSegments || {}).forEach(function(segKey){
-      var u2 = new URL(base.toString());
-      var path = u2.pathname.replace(/\/+$/,'');
-      var rx = new RegExp('(?:^|/)'+ segKey + '/(\\d+)(?:/|$)','i');
-      if (rx.test(path)) {
-        path = path.replace(rx, function(_m, num){
-          var n = parseInt(num, 10); if (isNaN(n)) n = 1;
-          return '/' + segKey + '/' + (n+1) + '/';
-        });
-      } else {
-        path = path + '/' + segKey + '/2';
-      }
-      u2.pathname = path;
-      out.push(u2.toString());
-    });
-
-    // De-dupe and cap
-    var seen = {}; var uniq = [];
-    for (var i=0;i<out.length;i++){
-      var u = out[i];
-      if (!seen[u]) { uniq.push(u); seen[u] = true; }
-    }
-    return uniq.slice(0, 12);
-  } catch (e) {
-    return out;
-  }
-}
 
 /////////////////////////////////////////
 // Message handler (popup -> background)
@@ -415,57 +275,8 @@ chrome.runtime.onMessage.addListener(function(msg, _sender, sendResponse){
           urlPathEquals(llmsRes.url, '/llms.txt') &&
           isLikelyPlainText(llmsRes);
 
-        // Discover and expand sitemaps (for pagination inference)
+        // Discover and expand sitemaps
         var sitemapUrls = await discoverSitemapUrls(origin, robots.text);
-        var allLocs = await expandSitemapsOnce(sitemapUrls);
-        var patterns = inferPaginationFromUrls(allLocs);
-
-        // Build guesses for "page 2" based on patterns; include DOM-provided links first
-        var domPaginationLinks = Array.isArray(msg.paginationLinks) ? msg.paginationLinks : [];
-        var guesses = [];
-
-        domPaginationLinks.forEach(function(href){
-          if (typeof href !== 'string' || !href.trim()) return;
-          var abs = absolutize(msg.url, href.trim());
-          if (abs) guesses.push(abs);
-        });
-
-        // Add pattern-based guesses after direct DOM links
-        var patternGuesses = buildPage2Guesses(msg.url, patterns);
-        if (patternGuesses && patternGuesses.length) {
-          guesses = guesses.concat(patternGuesses);
-        }
-
-        // Fallback to generic patterns if still empty
-        if (!guesses || !guesses.length){
-          guesses = ['?page=2','&page=2','/page/2','?p=2','&p=2','?pg=2','&pg=2','?offset=20','&offset=20','/p/2']
-            .map(function(s){ return absolutize(msg.url, s); })
-            .filter(Boolean);
-        }
-
-        // De-duplicate while preserving order, cap to reasonable count
-        var seenGuesses = {};
-        var dedupedGuesses = [];
-        for (var gi = 0; gi < guesses.length; gi++) {
-          var guessUrl = guesses[gi];
-          if (!guessUrl || seenGuesses[guessUrl]) continue;
-          seenGuesses[guessUrl] = true;
-          dedupedGuesses.push(guessUrl);
-          if (dedupedGuesses.length >= 20) break;
-        }
-        guesses = dedupedGuesses;
-
-        // Try to fetch one working "page 2"
-        var paginationFetch = { ok:false };
-        for (var i=0;i<guesses.length;i++){
-          var href = guesses[i];
-          var pg = await fetchText(href);
-          var textLen = pg && pg.text ? pg.text.replace(/\s+/g, ' ').trim().length : 0;
-          if (pg.ok && textLen > 500 && !/<html[^>]*>\s*<\/html>/i.test(pg.text || '')) {
-            paginationFetch = { ok:true, url:href, status: pg.status };
-            break;
-          }
-        }
 
         // Build response payload (netInfo)
         var netInfo = {
@@ -475,16 +286,7 @@ chrome.runtime.onMessage.addListener(function(msg, _sender, sendResponse){
           llmsTxt:{ exists: llmsTxtExists, status: llmsRes.status, url: llmsRes.url, ct: (llmsRes.headers||{})['content-type'] || '' },
           sitemap: { exists: sitemapTry.ok || (sitemapUrls && sitemapUrls.length > 0) },
           headers: { xRobotsTag: xr },
-          root:    { headers: headerLC(root.headers), status: root.status },
-          paginationFetch: paginationFetch,
-          paginationDerived: {
-            sitemapSeeds: sitemapUrls,
-            patternSampleCounts: {
-              queryParams: Object.keys(patterns.queryParams || {}).length,
-              pathSegments: Object.keys(patterns.pathSegments || {}).length
-            },
-            guessesTried: guesses.slice(0, 6)
-          }
+          root:    { headers: headerLC(root.headers), status: root.status }
         };
 
         sendResponse(netInfo);

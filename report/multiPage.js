@@ -18,7 +18,7 @@ export function renderMultiPageList(multi) {
   }
 
   list.innerHTML = "";
-  var order = ["geo","seo","a11y","performance","infinite"];
+  var order = ["geo","seo","a11y","performance"];
   for (var i = 0; i < multi.pages.length; i++) {
     var entry = multi.pages[i];
     if (!entry) continue;

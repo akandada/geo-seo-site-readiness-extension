@@ -26,7 +26,6 @@ export function categoryLabel(name) {
   if (name === "a11y") return "Accessibility";
   if (name === "seo") return "SEO";
   if (name === "performance") return "Performance";
-  if (name === "infinite") return "Infinite Scroll";
   return name;
 }
 
