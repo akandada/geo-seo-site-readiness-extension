@@ -22,7 +22,6 @@ export function recommendationSeverityValue(sev) {
 
 export function categoryLabel(name) {
   if (name === "geo") return "GEO / LLM";
-  if (name === "answer") return "Answer Engine";
   if (name === "a11y") return "Accessibility";
   if (name === "seo") return "SEO";
   if (name === "performance") return "Performance";
