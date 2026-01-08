@@ -39,17 +39,12 @@ function updateCharts(data, overallScore) {
     {
       title: "GEO / LLM Readiness",
       cat: data.categories && data.categories.geo,
-      helper: "Out of 22 points based on AI crawler permissions, policy file availability, and penalties for noai directives."
+      helper: "Out of 27 points based on AI crawler permissions, policy file availability, summary signals, citations, and penalties for noai directives."
     },
     {
       title: "Crawlability & SEO",
       cat: data.categories && data.categories.seo,
       helper: "Max 25 points for sitemap discovery, indexability, structured data, canonical tags, and healthy title/description lengths."
-    },
-    {
-      title: "Answer Engine Optimization",
-      cat: data.categories && data.categories.answer,
-      helper: "Up to 20 points awarded for FAQ/HowTo schema, speakable markup, question modules, summaries, and authoritative citations."
     },
     {
       title: "Accessibility & Semantics",
