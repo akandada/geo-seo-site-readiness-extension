@@ -33,6 +33,17 @@
     <p class="input-note">Root-relative or full URLs only. Up to 5 extra paths; others are ignored.</p>
   </section>
 
+  <section id="openAiCard" class="card">
+    <h2>Premium: OpenAI report</h2>
+    <label for="openAiKey" class="input-label">OpenAI API key (stored locally).</label>
+    <input id="openAiKey" type="password" placeholder="sk-..." autocomplete="off" />
+    <div class="input-actions">
+      <button id="saveOpenAiKey" type="button">Save key</button>
+      <button id="clearOpenAiKey" type="button">Clear</button>
+    </div>
+    <p class="input-note" id="openAiStatus">Add a key to include a verbose AI report in the full report.</p>
+  </section>
+
   <section class="card">
     <h2>Category Scores</h2>
     <ul id="cats"></ul>

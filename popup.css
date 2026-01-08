@@ -35,6 +35,10 @@ li { margin: 4px 0; }
 .page-list li strong { font-size: 12px; }
 #pathsCard textarea { width: 100%; min-height: 72px; resize: vertical; border-radius: 6px; border: 1px solid #ccd5e3; padding: 6px;
   font-family: inherit; font-size: 12px; line-height: 1.4; }
+.input-actions { display: flex; gap: 8px; margin-top: 6px; }
+#openAiKey { width: 100%; border-radius: 6px; border: 1px solid #ccd5e3; padding: 6px; font-family: inherit; font-size: 12px; }
+#saveOpenAiKey, #clearOpenAiKey { padding: 6px 10px; border: 1px solid #ddd; background: #f8f8f8; cursor: pointer; border-radius: 6px; font-size: 12px; }
+#openAiStatus { margin-top: 6px; }
 .input-label { display: block; font-size: 12px; margin-bottom: 4px; color: #33415c; }
 .input-note { margin: 6px 0 0; font-size: 11px; color: #5a6b85; }
 footer { margin-top: 12px; color: #666; }
