@@ -11,6 +11,17 @@ chrome.runtime.onMessage.addListener(function (msg, _sender, sendResponse) {
     sendResponse({ ok: true, ts: Date.now() });
     return true;
   }
+  if (msg && msg.type === "OPENAI_ANALYZE_PAGE") {
+    (async function () {
+      try {
+        var data = await fetchOpenAiReport(msg.apiKey, msg.url);
+        sendResponse({ ok: true, data: data });
+      } catch (err) {
+        sendResponse({ ok: false, error: getErrorMessage(err) });
+      }
+    })();
+    return true;
+  }
 });
 
 function headerLC(map){
@@ -20,6 +31,78 @@ function headerLC(map){
     out[k.toLowerCase()] = map[k];
   }
   return out;
+}
+
+function getErrorMessage(err) {
+  if (!err) return "Unknown error.";
+  if (typeof err === "string") return err;
+  if (typeof err.message === "string") return err.message;
+  try { return String(err); }
+  catch (e) { return "Unknown error."; }
+}
+
+async function fetchOpenAiReport(apiKey, pageUrl) {
+  if (!apiKey) throw new Error("Missing OpenAI API key.");
+  if (!pageUrl) throw new Error("Missing page URL.");
+  var model = "gpt-4o-mini";
+  var systemPrompt = [
+    "You are an expert SEO, GEO (LLM readiness), AEO (answer engine optimization), and accessibility auditor.",
+    "Provide a verbose, structured report with headings and bullet lists.",
+    "Include prioritized recommendations and highlight quick wins.",
+    "Do not fabricate metrics; speak in terms of likely signals based on the URL."
+  ].join(" ");
+  var userPrompt = [
+    "Analyze this page for SEO, GEO, AEO, and accessibility.",
+    "Provide a verbose report with sections: Summary, SEO, GEO/LLM Readiness, AEO, Accessibility, Recommendations.",
+    "Page URL: " + pageUrl
+  ].join(" ");
+
+  var payload = {
+    model: model,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt }
+    ],
+    temperature: 0.3,
+    max_tokens: 900
+  };
+
+  var res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + apiKey
+    },
+    body: JSON.stringify(payload)
+  });
+
+  var json = null;
+  try {
+    json = await res.json();
+  } catch (e) {
+    throw new Error("Unable to parse OpenAI response.");
+  }
+
+  if (!res.ok) {
+    var errMsg = json && json.error && json.error.message ? json.error.message : "OpenAI request failed.";
+    throw new Error(errMsg);
+  }
+
+  var content = "";
+  if (json && json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content) {
+    content = json.choices[0].message.content;
+  }
+  if (!content) {
+    throw new Error("OpenAI response missing content.");
+  }
+
+  return {
+    status: "complete",
+    content: String(content || "").trim(),
+    model: model,
+    url: pageUrl,
+    createdAt: new Date().toISOString()
+  };
 }
 
 async function fetchText(url){

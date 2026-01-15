@@ -361,6 +361,50 @@ function renderHtmlStructure(structure) {
   addItem(iframeCount === 0 ? "No iframes embedded" : "Iframes embedded", iframeCount === 0 ? "No <iframe> elements detected." : iframeCount + " iframe(s) detected; ensure embeds are crawlable and performant.");
 }
 
+function renderAiReport(aiReport) {
+  var card = $("aiReportCard");
+  if (!card) return;
+  if (!aiReport) {
+    card.style.display = "none";
+    return;
+  }
+  card.style.display = "block";
+  var metaEl = $("aiReportMeta");
+  var contentEl = $("aiReportContent");
+  var emptyEl = $("aiReportEmpty");
+
+  var metaParts = [];
+  if (aiReport.url) metaParts.push("URL: " + aiReport.url);
+  if (aiReport.model) metaParts.push("Model: " + aiReport.model);
+  if (aiReport.createdAt) metaParts.push("Generated: " + aiReport.createdAt);
+  if (metaEl) metaEl.textContent = metaParts.join(" · ");
+
+  var status = aiReport.status || "";
+  var content = aiReport.content || "";
+  if (status === "complete" && content) {
+    if (contentEl) {
+      contentEl.textContent = content;
+      contentEl.style.display = "block";
+    }
+    if (emptyEl) emptyEl.style.display = "none";
+  } else {
+    if (contentEl) {
+      contentEl.textContent = "";
+      contentEl.style.display = "none";
+    }
+    if (emptyEl) {
+      if (aiReport.error) {
+        emptyEl.textContent = "OpenAI report failed: " + aiReport.error;
+      } else if (aiReport.reason) {
+        emptyEl.textContent = "OpenAI report not generated: " + aiReport.reason;
+      } else {
+        emptyEl.textContent = "No OpenAI report available.";
+      }
+      emptyEl.style.display = "block";
+    }
+  }
+}
+
 function renderHeader(data) {
   var urlFromDom = data.dom && data.dom.url ? data.dom.url : "";
   var urlFromNet = data.net && data.net.url ? data.net.url : "";
@@ -417,6 +461,7 @@ function renderHeader(data) {
     renderCaching(data.caching, data.dom && data.dom.images ? data.dom.images : null);
     renderPageCacheAnalysis(data.caching);
     renderHtmlStructure(data.dom && data.dom.htmlStructure ? data.dom.htmlStructure : null);
+    renderAiReport(data.aiReport || null);
 
 
     renderRecommendations(data.recommendations || []);

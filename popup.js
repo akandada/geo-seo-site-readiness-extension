@@ -19,6 +19,10 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
   var catsEl = document.getElementById("cats");
   var pathList = document.getElementById("pathList");
   var pageSummaries = document.getElementById("pageSummaries");
+  var openAiKeyInput = document.getElementById("openAiKey");
+  var openAiSaveBtn = document.getElementById("saveOpenAiKey");
+  var openAiClearBtn = document.getElementById("clearOpenAiKey");
+  var openAiStatus = document.getElementById("openAiStatus");
 
   // ---------- helpers ----------
   function gradeFromScore(score) { if (score >= 90) return "A"; if (score >= 80) return "B"; if (score >= 70) return "C"; if (score >= 60) return "D"; return "F"; }
@@ -34,6 +38,7 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
 
   var CATEGORY_ORDER = ["geo", "seo", "a11y", "performance"];
   var lastReportKey = null;
+  var openAiApiKey = "";
 
   function resetProgress() { if (progressEl) progressEl.innerHTML = ""; }
   function pushProgress(text, state) {
@@ -61,6 +66,67 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
     if (msg.indexOf("Receiving end does not exist") !== -1) return true;
     if (msg.indexOf("The message port closed before a response was received") !== -1) return true;
     return false;
+  }
+
+  function setOpenAiStatus(text, state) {
+    if (!openAiStatus) return;
+    openAiStatus.textContent = text;
+    openAiStatus.className = "input-note" + (state ? " " + state : "");
+  }
+
+  function loadOpenAiKey() {
+    if (!chrome.storage || !chrome.storage.local) return;
+    chrome.storage.local.get("openaiApiKey", function (data) {
+      openAiApiKey = data && data.openaiApiKey ? data.openaiApiKey : "";
+      if (openAiKeyInput) {
+        openAiKeyInput.value = openAiApiKey;
+      }
+      if (openAiApiKey) {
+        setOpenAiStatus("OpenAI key saved. The AI report will be generated on run.", "done");
+      } else {
+        setOpenAiStatus("Add a key to include a verbose AI report in the full report.");
+      }
+    });
+  }
+
+  function saveOpenAiKey() {
+    if (!chrome.storage || !chrome.storage.local) return;
+    var value = openAiKeyInput ? openAiKeyInput.value.trim() : "";
+    if (!value) {
+      openAiApiKey = "";
+      chrome.storage.local.remove("openaiApiKey", function () {
+        if (openAiKeyInput) openAiKeyInput.value = "";
+        setOpenAiStatus("Key cleared. AI report will be skipped.");
+      });
+      return;
+    }
+    openAiApiKey = value;
+    chrome.storage.local.set({ openaiApiKey: value }, function () {
+      setOpenAiStatus("OpenAI key saved. The AI report will be generated on run.", "done");
+    });
+  }
+
+  function clearOpenAiKey() {
+    if (!chrome.storage || !chrome.storage.local) return;
+    openAiApiKey = "";
+    chrome.storage.local.remove("openaiApiKey", function () {
+      if (openAiKeyInput) openAiKeyInput.value = "";
+      setOpenAiStatus("Key cleared. AI report will be skipped.");
+    });
+  }
+
+  async function requestOpenAiReport(apiKey, url) {
+    if (!apiKey || !url) return null;
+    var response = await chrome.runtime.sendMessage({
+      type: "OPENAI_ANALYZE_PAGE",
+      apiKey: apiKey,
+      url: url
+    });
+    if (!response || !response.ok) {
+      var message = response && response.error ? response.error : "OpenAI request failed.";
+      throw new Error(message);
+    }
+    return response.data || null;
   }
 
   async function injectContentScript(tabId) {
@@ -397,6 +463,18 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
     return await pingWorkerOnce();
   }
 
+  loadOpenAiKey();
+  if (openAiSaveBtn) {
+    openAiSaveBtn.addEventListener("click", function () {
+      saveOpenAiKey();
+    });
+  }
+  if (openAiClearBtn) {
+    openAiClearBtn.addEventListener("click", function () {
+      clearOpenAiKey();
+    });
+  }
+
   // ---------- open report ----------
   if (reportBtn) {
     reportBtn.addEventListener("click", function () {
@@ -476,6 +554,24 @@ import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
           }
 
           var aggregated = aggregatePageResults(pages, origin);
+          if (openAiApiKey) {
+            pushProgress("Requesting OpenAI report…");
+            try {
+              var aiPayload = await requestOpenAiReport(openAiApiKey, tab.url);
+              if (aiPayload) {
+                aggregated.aiReport = aiPayload;
+                pushProgress("OpenAI report generated.", "done");
+              } else {
+                aggregated.aiReport = { status: "error", error: "OpenAI report returned no content.", url: tab.url };
+                pushProgress("OpenAI report returned no content.", "warn");
+              }
+            } catch (aiErr) {
+              aggregated.aiReport = { status: "error", error: getErrorMessage(aiErr), url: tab.url };
+              pushProgress("OpenAI report failed. " + getErrorMessage(aiErr), "warn");
+            }
+          } else {
+            aggregated.aiReport = { status: "skipped", reason: "OpenAI key not configured.", url: tab.url };
+          }
           render(aggregated);
           pushProgress("Audit complete.", "done");
 
