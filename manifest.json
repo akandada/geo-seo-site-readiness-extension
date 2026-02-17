@@ -2,10 +2,14 @@
   "manifest_version": 3,
   "name": "Site Quality Index",
   "description": "Audits performance, crawlability, GEO optimization, SEO, answer-engine readiness, LLM-readiness, accessibility, and infinite scroll.",
-  "version": "2.0.2",
+  "version": "2.1.0",
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Site Quality Index"
+    "default_title": "Site Quality Index",
+    "default_icon": {
+      "16": "screen_shot.png",
+      "32": "screen_shot.png"
+    }
   },
   "permissions": [
     "activeTab",
@@ -17,5 +21,13 @@
     "http://*/*",
     "https://*/*"
   ],
-  "background": { "service_worker": "service_worker.js" }
+  "background": {
+    "service_worker": "service_worker.js"
+  },
+  "icons": {
+    "16": "screen_shot.png",
+    "32": "screen_shot.png",
+    "48": "screen_shot.png",
+    "128": "screen_shot.png"
+  }
 }

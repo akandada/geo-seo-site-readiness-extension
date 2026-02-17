@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Site Scan</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="site_scan.css" />
+</head>
+<body>
+  <header>
+    <h1>Site Scan</h1>
+    <div id="originLabel">Origin: —</div>
+    <div class="actions">
+      <button id="startScan" type="button">Start</button>
+      <button id="cancelScan" type="button" disabled>Cancel</button>
+    </div>
+  </header>
+
+  <section class="panel controls">
+    <label>Max pages
+      <select id="maxPages"><option>25</option><option selected>50</option><option>100</option><option>200</option></select>
+    </label>
+    <label>Sampling
+      <select id="sampling"><option value="first" selected>First N</option><option value="random">Random N</option><option value="path">By path diversity</option></select>
+    </label>
+    <label>Include patterns<textarea id="includePatterns" placeholder="/blog\n/news"></textarea></label>
+    <label>Exclude patterns<textarea id="excludePatterns" placeholder="/tag\n/author"></textarea></label>
+  </section>
+
+  <section class="panel">
+    <h2>Progress</h2>
+    <div id="status">Idle</div>
+    <div id="counts">Discovered: 0 • Scanned: 0</div>
+    <progress id="progressBar" value="0" max="100"></progress>
+    <div id="warnings"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Summary</h2>
+    <div id="summaryStats">—</div>
+    <button id="exportJson" type="button" disabled>Export JSON</button>
+    <button id="exportCsv" type="button" disabled>Export CSV</button>
+  </section>
+
+  <section class="panel">
+    <h2>Pages</h2>
+    <input id="filterInput" type="text" placeholder="Filter URL" />
+    <table>
+      <thead>
+        <tr><th data-sort="url">URL</th><th data-sort="score">Score</th><th>Grade</th><th>Categories</th><th>Failures</th><th>Deep Audit</th></tr>
+      </thead>
+      <tbody id="pagesBody"></tbody>
+    </table>
+  </section>
+
+  <script type="module" src="site_scan.js"></script>
+</body>
+</html>

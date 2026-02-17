@@ -145,3 +145,14 @@ Follow these steps to load the extension locally for exploratory or regression t
 - Background tasks run in `service_worker.js`, while UI logic lives in `popup.js` and `report.js`. Content inspection is isolated in `content.js`.
 - To debug background fetches, open `chrome://extensions`, locate **Site Quality Index**, and inspect the service worker console.
 
+
+## Site Scan mode
+
+A new **Site Scan** page is available from the popup (**Site Scan** button). It discovers URLs from sitemap sources (robots.txt `Sitemap:` directives + common sitemap fallbacks), scans up to a configurable page limit (25/50/100/200), and stores lightweight per-page summaries instead of full DOM/network payloads for every URL.
+
+### Site Scan limits
+
+- URL discovery is sitemap-first and same-origin only.
+- Sitemap processing is bounded (byte limit per sitemap, sitemap recursion/count cap, URL cap) to keep scans stable.
+- Scanning runs with a single reusable background tab, concurrency `1`, and per-page timeout safeguards.
+- For full diagnostics on a specific row, use **Run** in Site Scan results (deep audit for one page) or the deep-audit CTA in summary-only reports.
