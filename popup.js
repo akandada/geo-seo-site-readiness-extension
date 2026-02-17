@@ -34,7 +34,7 @@ import { auditPageWithReusableTab as coreAuditPageWithReusableTab, aggregatePage
     return cur === undefined ? fallback : cur;
   }
 
-  var CATEGORY_ORDER = CORE_CATEGORY_ORDER.slice();
+  var CATEGORY_ORDER = ["geo", "seo", "a11y", "performance"];
   var lastReportKey = null;
 
   function resetProgress() { if (progressEl) progressEl.innerHTML = ""; }
@@ -524,12 +524,10 @@ import { auditPageWithReusableTab as coreAuditPageWithReusableTab, aggregatePage
   // ---------- scoring & report assembly ----------
   function computeAudit(dom, net) {
     var CATS = {
-      geo: { max: 22, score: 0, items: [] },
+      geo: { max: 27, score: 0, items: [] },
       seo: { max: 25, score: 0, items: [] },
-      answer: { max: 20, score: 0, items: [] },
       a11y: { max: 20, score: 0, items: [] },
-      performance: { max: 35, score: 0, items: [] },
-      infinite: { max: 10, score: 0, items: [] }
+      performance: { max: 35, score: 0, items: [] }
     };
 
     var recommendations = [];
@@ -780,31 +778,7 @@ import { auditPageWithReusableTab as coreAuditPageWithReusableTab, aggregatePage
     }
     addCat("seo", 1, densityOk, densityOk ? "Keyword density balanced" : "Keyword density off target", densityRecommendation, densityDetail, densityOk ? "low" : "medium");
 
-    // Answer engine optimization
     var answerSignals = get(dom, ["answer"], {}) || {};
-    var faqSchemaOk = !!(get(answerSignals, ["faqSchema"], false) || get(answerSignals, ["qaSchema"], false) || (Number(get(answerSignals, ["faqMicrodataCount"], 0)) || 0) > 0);
-    var faqDetailParts = [];
-    if (get(answerSignals, ["faqSchema"], false)) faqDetailParts.push("FAQPage JSON-LD");
-    if (get(answerSignals, ["qaSchema"], false)) faqDetailParts.push("QAPage JSON-LD");
-    var faqMicroCount = Number(get(answerSignals, ["faqMicrodataCount"], 0)) || 0;
-    if (faqMicroCount > 0) faqDetailParts.push(faqMicrodataCount + " FAQ microdata node(s)");
-    var faqDetail = faqSchemaOk ? "Detected " + faqDetailParts.join(", ") + "." : "No FAQ/Q&A structured data detected in JSON-LD or microdata.";
-    addCat("answer", 6, faqSchemaOk, faqSchemaOk ? "FAQ/Q&A structured data present" : "FAQ/Q&A structured data missing", "Add schema.org FAQPage or QAPage markup to feed answer engines.", faqDetail, faqSchemaOk ? "low" : "high");
-
-    var howToOk = !!get(answerSignals, ["howToSchema"], false);
-    var howToDetail = howToOk ? "HowTo schema detected in JSON-LD." : "No HowTo structured data detected.";
-    addCat("answer", 4, howToOk, howToOk ? "HowTo schema present" : "HowTo schema missing", "Publish HowTo structured data for step-by-step content.", howToDetail, howToOk ? "low" : "medium");
-
-    var speakableOk = !!get(answerSignals, ["speakableSchema"], false);
-    var speakableDetail = speakableOk ? "SpeakableSpecification or speakable property detected." : "No speakable markup found.";
-    addCat("answer", 2, speakableOk, speakableOk ? "Speakable markup present" : "Speakable markup missing", "Add speakable markup so assistants can quote summaries.", speakableDetail, speakableOk ? "low" : "medium");
-
-    var faqAccordionCount = Number(get(answerSignals, ["faqAccordionCount"], 0)) || 0;
-    var questionHeadingCount = Number(get(answerSignals, ["questionHeadingCount"], 0)) || 0;
-    var faqModulesOk = (faqAccordionCount + questionHeadingCount) > 0;
-    var faqModuleDetail = faqModulesOk ? faqAccordionCount + " accordion(s) and " + questionHeadingCount + " question heading(s) detected." : "No obvious FAQ accordion or question-style headings detected.";
-    addCat("answer", 3, faqModulesOk, faqModulesOk ? "FAQ/Q&A modules detected" : "FAQ/Q&A modules missing", "Expose question-and-answer sections that map to user queries.", faqModuleDetail, faqModulesOk ? "low" : "medium");
-
     var summaryListCount = Number(get(answerSignals, ["keyTakeawayLists"], 0)) || 0;
     var hasSummaryList = !!get(answerSignals, ["hasSummaryList"], false);
     var tocDetected = !!get(answerSignals, ["hasTableOfContents"], false);
@@ -812,12 +786,12 @@ import { auditPageWithReusableTab as coreAuditPageWithReusableTab, aggregatePage
     summaryDetailParts.push(summaryListCount + " takeaway list(s)");
     summaryDetailParts.push(tocDetected ? "table of contents links detected" : "no table of contents links");
     var summaryDetail = "Summary signals: " + summaryDetailParts.join(", ") + ".";
-    addCat("answer", 3, hasSummaryList || tocDetected, (hasSummaryList || tocDetected) ? "Summaries or TOC detected" : "No summaries/TOC detected", "Add a key takeaways list or table of contents near the top of the page.", summaryDetail, (hasSummaryList || tocDetected) ? "low" : "medium");
+    addCat("geo", 3, hasSummaryList || tocDetected, (hasSummaryList || tocDetected) ? "Summaries or TOC detected" : "No summaries/TOC detected", "Add a key takeaways list or table of contents near the top of the page.", summaryDetail, (hasSummaryList || tocDetected) ? "low" : "medium");
 
     var authorityCount = Number(get(dom, ["geo", "citationAuthorityCount"], 0)) || 0;
     var authorityOk = authorityCount > 0;
     var authorityDetail = authorityOk ? "Detected " + authorityCount + " authoritative outbound citation(s)." : "No .gov/.edu or research-style citations detected.";
-    addCat("answer", 2, authorityOk, authorityOk ? "Authoritative citations present" : "Authoritative citations missing", "Link to authoritative sources to boost answer credibility.", authorityDetail, authorityOk ? "low" : "medium");
+    addCat("geo", 2, authorityOk, authorityOk ? "Authoritative citations present" : "Authoritative citations missing", "Link to authoritative sources to boost answer credibility.", authorityDetail, authorityOk ? "low" : "medium");
 
     // A11y
     var h1Total = get(dom, ["h1Count"], 0) || 0;
@@ -934,33 +908,6 @@ import { auditPageWithReusableTab as coreAuditPageWithReusableTab, aggregatePage
     var fontsDisplay = !!get(dom, ["fonts", "haveDisplay"], false);
     addCat("performance", 1, fontsDisplay, "Fonts use font-display", "Add font-display: swap/optional to custom fonts.", fontsDisplay ? "font-display detected in inline styles." : "No font-display declaration found in detected stylesheets.", fontsDisplay ? "low" : "low");
 
-    // Infinite scroll / crawlable pagination
-    var hasPaginationLinks = ((get(dom, ["pagination", "links"], []) || []).length) > 0;
-    var infiniteObserved = !!get(dom, ["infinite", "appendedOnScroll"], false);
-    var pageFetchOK = !!get(net, ["paginationFetch", "ok"], false);
-    var paginationVisible = !!get(dom, ["pagination", "visible"], false);
-    var relNextPrevFound = !!get(dom, ["pagination", "relNextPrev"], false);
-
-    var infinitePatternOK = hasPaginationLinks && (!infiniteObserved || pageFetchOK);
-    var paginationLinksCount = (get(dom, ["pagination", "links"], []) || []).length;
-    var infiniteMissing = [];
-    if (!hasPaginationLinks) infiniteMissing.push("pagination links");
-    if (infiniteObserved && !pageFetchOK) infiniteMissing.push("page fetch success");
-    var infiniteDetail = infinitePatternOK ?
-      "Found " + paginationLinksCount + " pagination link(s)" + (pageFetchOK ? " and a page 2 fetch succeeded." : ".") :
-      "Missing pagination requirements: " + (infiniteMissing.length ? infiniteMissing.join(" and ") : "unknown cause") + ".";
-    addCat("infinite", 7, infinitePatternOK, "Crawlable pagination present", "Expose crawlable page 2/3 links and ensure they return content.", infiniteDetail, infinitePatternOK ? "low" : "high");
-
-    var paginationVisibilityDetail = paginationVisible ?
-      "Pagination elements are visible in the DOM." :
-      (relNextPrevFound ? "rel=next/prev link tags found." : "No visible pagination controls or rel hints detected.");
-    addCat("infinite", 3, (paginationVisible || relNextPrevFound), paginationVisible ? "Pagination visible to users" : "rel=\"next/prev\" present", "Surface visible pagination links or add rel=next/prev hints.", paginationVisibilityDetail, (paginationVisible || relNextPrevFound) ? "low" : "medium");
-
-    var infiniteModeDetail = infiniteObserved ?
-      "Additional content appended during scroll test." :
-      "No infinite scroll behavior detected; relies on traditional pagination.";
-    addCat("infinite", 0, true, infiniteObserved ? "Infinite scroll detected" : "Traditional pagination", infiniteObserved ? null : "If you want infinite UX, progressively append without hiding crawlable links.", infiniteModeDetail);
-
     if (geoPenalty) {
       CATS.geo.score = Math.max(0, CATS.geo.score - geoPenalty);
     }
@@ -1014,10 +961,8 @@ import { auditPageWithReusableTab as coreAuditPageWithReusableTab, aggregatePage
       categories: {
         geo: { score: pct(CATS.geo.score, CATS.geo.max), items: CATS.geo.items },
         seo: { score: pct(CATS.seo.score, CATS.seo.max), items: CATS.seo.items },
-        answer: { score: pct(CATS.answer.score, CATS.answer.max), items: CATS.answer.items },
         a11y: { score: pct(CATS.a11y.score, CATS.a11y.max), items: CATS.a11y.items },
-        performance: { score: pct(CATS.performance.score, CATS.performance.max), items: CATS.performance.items },
-        infinite: { score: pct(CATS.infinite.score, CATS.infinite.max), items: CATS.infinite.items }
+        performance: { score: pct(CATS.performance.score, CATS.performance.max), items: CATS.performance.items }
       },
       keyChecks: keyChecks,
       recommendations: recommendations,
@@ -1091,15 +1036,7 @@ import { auditPageWithReusableTab as coreAuditPageWithReusableTab, aggregatePage
 
     try {
       pushProgress("Scanning network endpoints for " + label + "…");
-      var paginationLinksForNet = [];
-      try {
-        var rawLinks = get(domInfo, ["pagination", "links"], []);
-        if (Array.isArray(rawLinks) && rawLinks.length) {
-          paginationLinksForNet = rawLinks.filter(function (link) { return typeof link === "string" && link.trim(); });
-        }
-      } catch (linkErr) { /* ignore and fall back to empty list */ }
-
-      netInfo = await chrome.runtime.sendMessage({ type: "COLLECT_NETWORK_INFO", url: url, paginationLinks: paginationLinksForNet });
+      netInfo = await chrome.runtime.sendMessage({ type: "COLLECT_NETWORK_INFO", url: url });
       pushProgress(netInfo ? "Network scan complete for " + label + "." : "Network scan unavailable for " + label + ".", netInfo ? "done" : "warn");
     } catch (e3) {
       console.warn("[SRA] Network info fetch failed for", url, e3);
@@ -1163,8 +1100,7 @@ import { auditPageWithReusableTab as coreAuditPageWithReusableTab, aggregatePage
       if (!cat) continue;
       var li = document.createElement("li");
       var title = name === "geo" ? "GEO / LLM" :
-        (name === "answer" ? "Answer Engine" :
-          (name === "a11y" ? "Accessibility" : name.charAt(0).toUpperCase() + name.slice(1)));
+        (name === "a11y" ? "Accessibility" : name.charAt(0).toUpperCase() + name.slice(1));
       li.textContent = title + ": " + cat.score + "/100";
       catsEl.appendChild(li);
     }

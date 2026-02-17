@@ -1,5 +1,5 @@
 import { renderOverallGauge, renderFindingBreakdown, renderScoreChart } from "./report/charts.js";
-import { $, cardEl, fillChips, parseQuery } from "./report/dom.js";
+import { $, cardEl, parseQuery } from "./report/dom.js";
 import { formatDurationSeconds } from "./report/formatters.js";
 import { renderGeoDeepDive } from "./report/geo.js";
 import { renderLighthouseCard } from "./report/lighthouse.js";
@@ -54,17 +54,12 @@ function updateCharts(data, overallScore) {
     {
       title: "GEO / LLM Readiness",
       cat: data.categories && data.categories.geo,
-      helper: "Out of 22 points based on AI crawler permissions, policy file availability, and penalties for noai directives."
+      helper: "Out of 27 points based on AI crawler permissions, policy file availability, summary signals, citations, and penalties for noai directives."
     },
     {
       title: "Crawlability & SEO",
       cat: data.categories && data.categories.seo,
       helper: "Max 25 points for sitemap discovery, indexability, structured data, canonical tags, and healthy title/description lengths."
-    },
-    {
-      title: "Answer Engine Optimization",
-      cat: data.categories && data.categories.answer,
-      helper: "Up to 20 points awarded for FAQ/HowTo schema, speakable markup, question modules, summaries, and authoritative citations."
     },
     {
       title: "Accessibility & Semantics",
@@ -75,11 +70,6 @@ function updateCharts(data, overallScore) {
       title: "Performance",
       cat: data.categories && data.categories.performance,
       helper: "Capped at 35 points combining Lighthouse Core Web Vitals with bonuses for compression, caching, resource hints, modern image formats, lazy loading, and font-display."
-    },
-    {
-      title: "Infinite Scroll Pattern",
-      cat: data.categories && data.categories.infinite,
-      helper: "Worth up to 10 points for crawlable pagination URLs, successful page-2 fetches, and visible or hinted pagination controls."
     }
   ];
 
@@ -188,22 +178,6 @@ function updateCharts(data, overallScore) {
   if (chartDashboardCard) {
     chartDashboardCard.style.display = chartPanelsVisible ? "block" : "none";
   }
-}
-
-function renderPagination(paginationDerived) {
-  if (!paginationDerived) {
-    $("paginationCard").style.display = "none";
-    return;
-  }
-  $("paginationCard").style.display = "block";
-  var seeds = paginationDerived.sitemapSeeds || [];
-  var guesses = paginationDerived.guessesTried || [];
-  var qpCount = paginationDerived.patternSampleCounts && paginationDerived.patternSampleCounts.queryParams != null ? paginationDerived.patternSampleCounts.queryParams : 0;
-  var psCount = paginationDerived.patternSampleCounts && paginationDerived.patternSampleCounts.pathSegments != null ? paginationDerived.patternSampleCounts.pathSegments : 0;
-
-  fillChips($("pgSeeds"), seeds, 4);
-  $("pgInfo").textContent = "queryParams: " + qpCount + " · pathSegments: " + psCount;
-  fillChips($("pgGuesses"), guesses, 6);
 }
 
 function renderCaching(caching, imageStats) {
@@ -466,7 +440,6 @@ function renderHeader(data) {
     renderPageCacheAnalysis(data.caching);
     renderHtmlStructure(data.dom && data.dom.htmlStructure ? data.dom.htmlStructure : null);
 
-    renderPagination(data.net && data.net.paginationDerived ? data.net.paginationDerived : null);
 
     renderRecommendations(data.recommendations || []);
 

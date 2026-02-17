@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Site Quality Index",
   "description": "Audits performance, crawlability, GEO optimization, SEO, answer-engine readiness, LLM-readiness, accessibility, and infinite scroll.",
-  "version": "2.1.0",
+  "version": "2.0.4",
   "action": {
     "default_popup": "popup.html",
     "default_title": "Site Quality Index",
