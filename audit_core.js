@@ -1,214 +1,111 @@
-// popup.js — MV3-safe, no optional chaining / nullish coalescing.
-// Includes a background PING + retry before requesting COLLECT_NETWORK_INFO.
-// Wrapped in an IIFE to keep globals tidy and stabilize line numbers.
-
 import { scoreWebVitals, scoreLabelFromValue } from "./lighthouse_metrics.js";
-import { auditPageWithReusableTab as coreAuditPageWithReusableTab, aggregatePageResults as coreAggregatePageResults, CATEGORY_ORDER as CORE_CATEGORY_ORDER, shortLabel as coreShortLabel } from "./audit_core.js";
 
-(function () {
-  "use strict";
-
-  // ---------- DOM refs ----------
-  var runBtn = document.getElementById("run");
-  var reportBtn = document.getElementById("openReport");
-  var siteScanBtn = document.getElementById("openSiteScan");
-  var scoreEl = document.getElementById("score");
-  var gradeEl = document.getElementById("grade");
-  var summaryText = document.getElementById("summaryText");
-  var progressEl = document.getElementById("progress");
-  var checklist = document.getElementById("checklist");
-  var recommendationsEl = document.getElementById("recommendations");
-  var catsEl = document.getElementById("cats");
-  var pathList = document.getElementById("pathList");
-  var pageSummaries = document.getElementById("pageSummaries");
-
-  // ---------- helpers ----------
-  function gradeFromScore(score) { if (score >= 90) return "A"; if (score >= 80) return "B"; if (score >= 70) return "C"; if (score >= 60) return "D"; return "F"; }
-  function pct(x, max) { var val = Math.max(0, Math.min(Number(x) || 0, max)); return Math.round((val / max) * 100); }
-  function get(obj, path, fallback) {
-    var cur = obj;
-    for (var i = 0; i < path.length; i++) {
-      if (!cur || typeof cur !== "object" || !(path[i] in cur)) return fallback;
-      cur = cur[path[i]];
-    }
-    return cur === undefined ? fallback : cur;
+function gradeFromScore(score) { if (score >= 90) return "A"; if (score >= 80) return "B"; if (score >= 70) return "C"; if (score >= 60) return "D"; return "F"; }
+function pct(x, max) { var val = Math.max(0, Math.min(Number(x) || 0, max)); return Math.round((val / max) * 100); }
+function get(obj, path, fallback) {
+  var cur = obj;
+  for (var i = 0; i < path.length; i++) {
+    if (!cur || typeof cur !== "object" || !(path[i] in cur)) return fallback;
+    cur = cur[path[i]];
   }
+  return cur === undefined ? fallback : cur;
+}
 
-  var CATEGORY_ORDER = CORE_CATEGORY_ORDER.slice();
-  var lastReportKey = null;
+var CATEGORY_ORDER = ["geo", "seo", "answer", "a11y", "performance", "infinite"];
 
-  function resetProgress() { if (progressEl) progressEl.innerHTML = ""; }
-  function pushProgress(text, state) {
-    if (!progressEl) return;
-    var div = document.createElement("div");
-    div.className = "progress-item" + (state ? " " + state : "");
-    div.textContent = text;
-    progressEl.appendChild(div);
-  }
+function delay(ms) { return new Promise(function (res) { setTimeout(res, ms); }); }
 
-  function delay(ms) { return new Promise(function (res) { setTimeout(res, ms); }); }
+function getErrorMessage(err) {
+  if (!err) return "";
+  if (typeof err === "string") return err;
+  if (typeof err.message === "string") return err.message;
+  try { return String(err); }
+  catch (e) { return ""; }
+}
 
-  function getErrorMessage(err) {
-    if (!err) return "";
-    if (typeof err === "string") return err;
-    if (typeof err.message === "string") return err.message;
-    try { return String(err); }
-    catch (e) { return ""; }
-  }
+function isNoReceiverError(err) {
+  var msg = getErrorMessage(err);
+  if (!msg) return false;
+  if (msg.indexOf("Could not establish connection") !== -1) return true;
+  if (msg.indexOf("Receiving end does not exist") !== -1) return true;
+  if (msg.indexOf("The message port closed before a response was received") !== -1) return true;
+  return false;
+}
 
-  function isNoReceiverError(err) {
-    var msg = getErrorMessage(err);
-    if (!msg) return false;
-    if (msg.indexOf("Could not establish connection") !== -1) return true;
-    if (msg.indexOf("Receiving end does not exist") !== -1) return true;
-    if (msg.indexOf("The message port closed before a response was received") !== -1) return true;
+async function injectContentScript(tabId) {
+  if (!tabId) return false;
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId: tabId },
+      files: ["content.js"]
+    });
+    return true;
+  } catch (err) {
     return false;
   }
+}
 
-  async function injectContentScript(tabId) {
-    if (!tabId) return false;
+async function requestDomInfoWithRetry(tabId, attempts) {
+  if (!tabId) return null;
+  var maxAttempts = attempts && attempts > 0 ? attempts : 3;
+  var lastError = null;
+  for (var i = 0; i < maxAttempts; i++) {
     try {
-      await chrome.scripting.executeScript({
-        target: { tabId: tabId },
-        files: ["content.js"]
-      });
-      return true;
+      if (i > 0 || (lastError && isNoReceiverError(lastError))) {
+        await injectContentScript(tabId);
+      }
+      return await chrome.tabs.sendMessage(tabId, { type: "COLLECT_DOM_INFO" });
     } catch (err) {
-      console.warn("[SRA] Unable to inject content.js", err);
-      return false;
-    }
-  }
-
-  async function requestDomInfoWithRetry(tabId, attempts) {
-    if (!tabId) return null;
-    var maxAttempts = attempts && attempts > 0 ? attempts : 3;
-    var lastError = null;
-    for (var i = 0; i < maxAttempts; i++) {
-      try {
-        if (i > 0 || (lastError && isNoReceiverError(lastError))) { // Only try injection if it's not the first attempt or if injection failed previously
-          var injectedNow = await injectContentScript(tabId);
-          // Injected = injected || injectedNow; // Removed unnecessary variable 'injected'
-        }
-        return await chrome.tabs.sendMessage(tabId, { type: "COLLECT_DOM_INFO" });
-      } catch (err) {
-        lastError = err;
-        if (i < maxAttempts - 1) {
-          try { await delay(250 * (i + 1)); }
-          catch (waitErr) { /* ignore */ }
-          continue;
-        }
-        throw err;
-      }
-    }
-    if (lastError) throw lastError;
-    return null;
-  }
-
-  function shortLabel(url, origin) {
-    try {
-      var u = new URL(url);
-      if (origin && u.origin === origin) {
-        var path = u.pathname || "/";
-        var search = u.search || "";
-        return path + search;
-      }
-      return u.origin + (u.pathname || "");
-    } catch (e) {
-      return url;
-    }
-  }
-
-  function parseAdditionalTargets(text, baseUrl) {
-    var out = { urls: [], warnings: [] };
-    if (!text) return out;
-    var lines = text.split(/[\n,]/);
-    var limit = 5;
-    var seen = {};
-    var baseHref = baseUrl && baseUrl.href ? baseUrl.href.replace(/#.*$/, "") : "";
-    var baseOrigin = baseUrl && baseUrl.origin ? baseUrl.origin : "";
-    for (var i = 0; i < lines.length; i++) {
-      var raw = lines[i];
-      if (!raw) continue;
-      var trimmed = raw.trim();
-      if (!trimmed) continue;
-      var resolved = null;
-      try {
-        if (/^https?:/i.test(trimmed)) {
-          var abs = new URL(trimmed);
-          if (baseUrl && abs.origin !== baseUrl.origin) {
-            out.warnings.push("Skipped '" + trimmed + "' – different origin.");
-            continue;
-          }
-          resolved = abs.origin + abs.pathname + abs.search;
-        } else {
-          if (!baseOrigin) {
-            out.warnings.push("Skipped '" + trimmed + "' – unable to resolve relative path without the active page origin.");
-            continue;
-          }
-          var rel = new URL(trimmed, baseOrigin + "/");
-          resolved = rel.origin + rel.pathname + rel.search;
-        }
-      } catch (e) {
-        out.warnings.push("Skipped '" + trimmed + "' – invalid URL or path.");
+      lastError = err;
+      if (i < maxAttempts - 1) {
+        try { await delay(250 * (i + 1)); } catch (waitErr) {}
         continue;
       }
-      if (!resolved) continue;
-      resolved = resolved.replace(/#.*$/, "");
-      if (baseHref && resolved === baseHref) {
-        out.warnings.push("Skipped '" + trimmed + "' – already auditing active page.");
-        continue;
-      }
-      if (seen[resolved]) {
-        out.warnings.push("Skipped '" + trimmed + "' – duplicate entry.");
-        continue;
-      }
-      if (out.urls.length >= limit) {
-        out.warnings.push("Ignored '" + trimmed + "' – only the first " + limit + " additional paths are scanned.");
-        continue;
-      }
-      seen[resolved] = true;
-      out.urls.push(resolved);
+      throw err;
     }
-    return out;
   }
+  if (lastError) throw lastError;
+  return null;
+}
 
-  async function waitForTabComplete(tabId) {
-    if (!tabId) return;
-    try {
-      var tab = await chrome.tabs.get(tabId);
-      if (tab && tab.status === "complete") return;
-    } catch (e) { }
-    return new Promise(function (resolve) {
-      var timeout = setTimeout(function () {
+async function waitForTabComplete(tabId, timeoutMs) {
+  if (!tabId) return;
+  var maxWait = timeoutMs && timeoutMs > 0 ? timeoutMs : 20000;
+  try {
+    var tab = await chrome.tabs.get(tabId);
+    if (tab && tab.status === "complete") return;
+  } catch (e) {}
+  return new Promise(function (resolve) {
+    var timeout = setTimeout(function () {
+      chrome.tabs.onUpdated.removeListener(listener);
+      resolve();
+    }, maxWait);
+    function listener(updatedId, info) {
+      if (updatedId === tabId && info && info.status === "complete") {
+        clearTimeout(timeout);
         chrome.tabs.onUpdated.removeListener(listener);
         resolve();
-      }, 15000);
-      function listener(updatedId, info) {
-        if (updatedId === tabId && info && info.status === "complete") {
-          clearTimeout(timeout);
-          chrome.tabs.onUpdated.removeListener(listener);
-          resolve();
-        }
       }
-      chrome.tabs.onUpdated.addListener(listener);
-    });
-  }
+    }
+    chrome.tabs.onUpdated.addListener(listener);
+  });
+}
 
-  function severityValue(state) {
-    if (state === "bad") return 3;
-    if (state === "warn") return 2;
-    if (state === "ok") return 1;
-    return 0;
+function shortLabel(url, origin) {
+  try {
+    var u = new URL(url);
+    if (origin && u.origin === origin) {
+      var path = u.pathname || "/";
+      var search = u.search || "";
+      return path + search;
+    }
+    return u.origin + (u.pathname || "");
+  } catch (e) {
+    return url;
   }
+}
 
-  function recommendationSeverityValue(sev) {
-    if (sev === "high") return 3;
-    if (sev === "medium") return 2;
-    if (sev === "low") return 1;
-    return 0;
-  }
-
-  function aggregatePageResults(pages, origin) {
+function aggregatePageResults(pages, origin) {
     var list = Array.isArray(pages) ? pages.filter(function (p) { return p && p.audit; }) : [];
     if (!list.length) {
       return computeAudit({ url: origin || "" }, { url: origin || "" });
@@ -383,146 +280,7 @@ import { auditPageWithReusableTab as coreAuditPageWithReusableTab, aggregatePage
     return agg;
   }
 
-  // ---------- service worker wake/diagnostics ----------
-  async function pingWorkerOnce() {
-    try {
-      var res = await chrome.runtime.sendMessage({ type: "PING" });
-      return !!(res && res.ok);
-    } catch (e) {
-      return false;
-    }
-  }
-  async function ensureWorkerAwake() {
-    // MV3 service workers spin up on demand; try twice
-    if (await pingWorkerOnce()) return true;
-    await new Promise(function (r) { setTimeout(r, 150); });
-    return await pingWorkerOnce();
-  }
-
-  // ---------- open report ----------
-  if (reportBtn) {
-    reportBtn.addEventListener("click", function () {
-      if (!lastReportKey) return;
-      var url = chrome.runtime.getURL("report.html?k=" + encodeURIComponent(lastReportKey));
-      chrome.tabs.create({ url: url });
-    });
-  }
-
-
-  if (siteScanBtn) {
-    siteScanBtn.addEventListener("click", async function () {
-      try {
-        var tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-        var tab = tabs && tabs[0] ? tabs[0] : null;
-        var origin = "";
-        try { origin = tab && tab.url ? new URL(tab.url).origin : ""; } catch (e) { origin = ""; }
-        var target = chrome.runtime.getURL("site_scan.html") + "?origin=" + encodeURIComponent(origin);
-        chrome.tabs.create({ url: target });
-      } catch (err) {
-        console.warn("[SRA] Failed to open Site Scan", err);
-      }
-    });
-  }
-  // ---------- run audit ----------
-  if (runBtn) {
-    runBtn.addEventListener("click", function () {
-      (async function run() {
-        try {
-          runBtn.disabled = true;
-          if (reportBtn) reportBtn.disabled = true;
-          resetProgress();
-          if (pageSummaries) { pageSummaries.innerHTML = ""; pageSummaries.style.display = "none"; }
-          pushProgress("Starting audit…");
-          if (summaryText) summaryText.textContent = "Running audit…";
-
-          var tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-          var tab = tabs && tabs[0];
-
-          if (!tab || !tab.id || !/^https?:/i.test(tab.url || "")) {
-            if (summaryText) summaryText.textContent = "Open a normal web page (http/https) to run the audit.";
-            pushProgress("Active tab is not a standard web page.", "warn");
-            return;
-          }
-
-          var baseUrl = null;
-          try { baseUrl = new URL(tab.url); }
-          catch (e) {
-            pushProgress("Unable to parse active tab URL.", "warn");
-            if (summaryText) summaryText.textContent = "Unable to parse the active tab URL.";
-            return;
-          }
-          var origin = baseUrl.origin;
-
-          var parsed = parseAdditionalTargets(pathList ? pathList.value : "", baseUrl);
-          for (var w = 0; w < parsed.warnings.length; w++) {
-            pushProgress(parsed.warnings[w], "warn");
-          }
-
-          var targets = [];
-          var seenMap = {};
-          function addTarget(url, label, reuseId) {
-            if (!url || seenMap[url]) return;
-            seenMap[url] = true;
-            targets.push({ url: url, label: label, reuseTabId: reuseId });
-          }
-
-          addTarget(tab.url, shortLabel(tab.url, origin), tab.id);
-          for (var i = 0; i < parsed.urls.length; i++) {
-            addTarget(parsed.urls[i], shortLabel(parsed.urls[i], origin), null);
-          }
-
-          if (!targets.length) {
-            pushProgress("No eligible URLs to audit.", "warn");
-            if (summaryText) summaryText.textContent = "No eligible URLs to audit.";
-            return;
-          }
-
-          pushProgress("Waking background worker…");
-          var awake = await ensureWorkerAwake();
-          pushProgress(awake ? "Background worker awake." : "Background worker not responding; continuing with limited checks.", awake ? "done" : "warn");
-          if (!awake && summaryText) {
-            summaryText.textContent = "Background didn’t start. Reload the extension, then try again.";
-          }
-
-          var pages = [];
-          for (var idx = 0; idx < targets.length; idx++) {
-            var target = targets[idx];
-            pushProgress("Auditing " + target.label + " (" + (idx + 1) + "/" + targets.length + ")…");
-            var pageResult = await coreAuditPageWithReusableTab({
-            url: target.url,
-            label: target.label,
-            origin: origin,
-            tabId: target.reuseTabId,
-            timeoutMs: 25000,
-            onProgress: pushProgress
-          });
-            pages.push(pageResult);
-          }
-
-          var aggregated = coreAggregatePageResults(pages, origin);
-          render(aggregated);
-          pushProgress("Audit complete.", "done");
-
-          lastReportKey = "audit-" + Math.random().toString(36).slice(2);
-          var saveObj = {}; saveObj[lastReportKey] = aggregated;
-          await chrome.storage.local.set(saveObj);
-
-          if (reportBtn) reportBtn.disabled = false;
-
-        } catch (err) {
-          console.error("[SRA] Fatal error in run():", err);
-          if (summaryText) summaryText.textContent = "Unexpected error. Open the popup console for details.";
-          pushProgress("Audit failed to complete.", "error");
-        } finally {
-          if (runBtn) runBtn.disabled = false;
-          if (reportBtn && lastReportKey) reportBtn.disabled = false;
-        }
-      })();
-    });
-  }
-
-  // ---------- scoring & report assembly ----------
-  function computeAudit(dom, net) {
+function computeAudit(dom, net) {
     var CATS = {
       geo: { max: 22, score: 0, items: [] },
       seo: { max: 25, score: 0, items: [] },
@@ -1033,193 +791,90 @@ import { auditPageWithReusableTab as coreAuditPageWithReusableTab, aggregatePage
       net: net
     };
   }
+function toSummaryAudit(audit) {
+  return {
+    meta: { url: audit && audit.meta && audit.meta.url ? audit.meta.url : "" },
+    overall: audit && audit.overall ? audit.overall : { score: 0, grade: "F" },
+    categories: audit && audit.categories ? audit.categories : {},
+    keyChecks: audit && audit.keyChecks ? audit.keyChecks : [],
+    recommendations: audit && audit.recommendations ? audit.recommendations : []
+  };
+}
 
-  async function auditPage(target, origin) {
-    var url = target && target.url ? target.url : "";
-    var label = target && target.label ? target.label : shortLabel(url, origin);
-    var reuseTabId = target && target.reuseTabId ? target.reuseTabId : null;
-    var domInfo = null;
-    var netInfo = null;
-    var createdTabId = null;
+async function runWithTimeout(promise, timeoutMs) {
+  var timeout = timeoutMs && timeoutMs > 0 ? timeoutMs : 25000;
+  var timer = null;
+  return await Promise.race([
+    promise,
+    new Promise(function (_resolve, reject) {
+      timer = setTimeout(function () { reject(new Error("Timeout")); }, timeout);
+    })
+  ]).finally(function () {
+    if (timer) clearTimeout(timer);
+  });
+}
 
-    if (!url) {
-      pushProgress("Skipped empty URL entry.", "warn");
-      var fallback = computeAudit({ url: origin || "" }, { url: origin || "" });
-      return { url: url, label: label, audit: fallback };
-    }
+export async function auditPageWithReusableTab(options) {
+  var opts = options || {};
+  var url = opts.url || "";
+  var origin = opts.origin || "";
+  var label = opts.label || shortLabel(url, origin);
+  var tabId = opts.tabId || null;
+  var createdTabId = null;
+  var timeoutMs = opts.timeoutMs || 25000;
+  var progress = typeof opts.onProgress === "function" ? opts.onProgress : function () {};
 
-    if (reuseTabId) {
-      try {
-        pushProgress("Collecting DOM data for " + label + "…");
-        domInfo = await requestDomInfoWithRetry(reuseTabId, 3);
-        pushProgress(domInfo ? "DOM data collected for " + label + "." : "DOM data unavailable for " + label + ".", domInfo ? "done" : "warn");
-      } catch (e1) {
-        console.warn("[SRA] DOM info fetch failed (active tab):", e1);
-        pushProgress("DOM data request failed for " + label + ".", "warn");
-      }
-    } else {
-      try {
-        pushProgress("Opening " + label + " in background…");
-        var newTab = await chrome.tabs.create({ url: url, active: false });
-        createdTabId = newTab && newTab.id ? newTab.id : null;
-        if (createdTabId) {
-          await waitForTabComplete(createdTabId);
-          await delay(250);
-          pushProgress("Collecting DOM data for " + label + "…");
-          try {
-            domInfo = await requestDomInfoWithRetry(createdTabId, 3);
-            pushProgress(domInfo ? "DOM data collected for " + label + "." : "DOM data unavailable for " + label + ".", domInfo ? "done" : "warn");
-          } catch (e2) {
-            console.warn("[SRA] DOM info fetch failed (background tab):", e2);
-            pushProgress("DOM data request failed for " + label + ".", "warn");
-          }
-        } else {
-          pushProgress("Unable to create background tab for " + label + ".", "warn");
-        }
-      } catch (createErr) {
-        console.warn("[SRA] Tab creation failed for", url, createErr);
-        pushProgress("Unable to capture DOM for " + label + ".", "warn");
-      } finally {
-        if (createdTabId) {
-          try { await chrome.tabs.remove(createdTabId); } catch (removeErr) { }
-        }
-      }
-    }
-
-    if (!domInfo) domInfo = { url: url };
-    else if (!domInfo.url) domInfo.url = url;
-
-    try {
-      pushProgress("Scanning network endpoints for " + label + "…");
-      var paginationLinksForNet = [];
-      try {
-        var rawLinks = get(domInfo, ["pagination", "links"], []);
-        if (Array.isArray(rawLinks) && rawLinks.length) {
-          paginationLinksForNet = rawLinks.filter(function (link) { return typeof link === "string" && link.trim(); });
-        }
-      } catch (linkErr) { /* ignore and fall back to empty list */ }
-
-      netInfo = await chrome.runtime.sendMessage({ type: "COLLECT_NETWORK_INFO", url: url, paginationLinks: paginationLinksForNet });
-      pushProgress(netInfo ? "Network scan complete for " + label + "." : "Network scan unavailable for " + label + ".", netInfo ? "done" : "warn");
-    } catch (e3) {
-      console.warn("[SRA] Network info fetch failed for", url, e3);
-      pushProgress("Network scan failed for " + label + ".", "warn");
-    }
-
-    if (!netInfo) netInfo = { url: url };
-
-    var audit = computeAudit(domInfo || {}, netInfo || {});
-    if (!audit.meta) audit.meta = {};
-    if (!audit.meta.url) audit.meta.url = url;
-    return { url: url, label: label, audit: audit };
+  if (!url) {
+    var fallback = computeAudit({ url: origin || "" }, { url: origin || "" });
+    return { url: "", label: label, audit: fallback, summary: toSummaryAudit(fallback), timedOut: false };
   }
 
-  // ---------- render ----------
-  function render(result) {
-    scoreEl.textContent = result.overall.score;
-    gradeEl.textContent = result.overall.grade;
+  var domInfo = null;
+  var netInfo = null;
 
-    var summaryLine =
-      result.overall.score >= 90 ? "Excellent overall readiness." :
-        result.overall.score >= 75 ? "Good foundation—fix the top warnings." :
-          "Multiple issues detected. Tackle the top recommendations first.";
-    var multi = result.meta && result.meta.multi ? result.meta.multi : null;
-    if (multi && multi.count > 1) {
-      summaryLine = multi.count + " pages scanned. " + summaryLine;
+  try {
+    if (!tabId) {
+      var created = await chrome.tabs.create({ url: url, active: false });
+      createdTabId = created && created.id ? created.id : null;
+      tabId = createdTabId;
     }
-    if (result.lighthouse && result.lighthouse.overallScore != null) {
-      summaryLine += " Lighthouse performance score " + result.lighthouse.overallScore + "/100.";
-    }
-    summaryText.textContent = summaryLine;
-
-    if (pageSummaries) {
-      pageSummaries.innerHTML = "";
-      if (multi && multi.pages && multi.pages.length) {
-        pageSummaries.style.display = "block";
-        for (var ps = 0; ps < multi.pages.length; ps++) {
-          var entry = multi.pages[ps];
-          if (!entry) continue;
-          var pageResult = entry.result || {};
-          var labelText = entry.label || (pageResult.meta && pageResult.meta.url) || entry.url || ("Page " + (ps + 1));
-          var scoreVal = pageResult.overall && pageResult.overall.score != null ? pageResult.overall.score : "—";
-          var gradeVal = pageResult.overall && pageResult.overall.grade ? pageResult.overall.grade : "—";
-          var li = document.createElement("li");
-          var strong = document.createElement("strong");
-          strong.textContent = labelText;
-          li.appendChild(strong);
-          li.appendChild(document.createTextNode(": " + scoreVal + "/100 (" + gradeVal + ")"));
-          pageSummaries.appendChild(li);
-        }
-      } else {
-        pageSummaries.style.display = "none";
-      }
-    }
-
-    catsEl.innerHTML = "";
-    var names = CATEGORY_ORDER.slice();
-    for (var i = 0; i < names.length; i++) {
-      var name = names[i];
-      var cat = result.categories[name];
-      if (!cat) continue;
-      var li = document.createElement("li");
-      var title = name === "geo" ? "GEO / LLM" :
-        (name === "answer" ? "Answer Engine" :
-          (name === "a11y" ? "Accessibility" : name.charAt(0).toUpperCase() + name.slice(1)));
-      li.textContent = title + ": " + cat.score + "/100";
-      catsEl.appendChild(li);
-    }
-
-    checklist.innerHTML = "";
-    var kc = result.keyChecks || [];
-    for (var j = 0; j < kc.length; j++) {
-      var c = kc[j];
-      var li2 = document.createElement("li");
-      li2.textContent = "[" + c.cat + "] " + c.text;
-      li2.className = c.state;
-      checklist.appendChild(li2);
-    }
-
-    if (recommendationsEl) {
-      recommendationsEl.innerHTML = "";
-      var recs = result.recommendations || [];
-      if (!recs.length) {
-        var emptyLi = document.createElement("li");
-        emptyLi.className = "muted";
-        emptyLi.textContent = "No recommendations.";
-        recommendationsEl.appendChild(emptyLi);
-      } else {
-        recs.sort(function (a, b) {
-          var diff = recommendationSeverityValue(b.severity) - recommendationSeverityValue(a.severity);
-          if (diff !== 0) return diff;
-          return (a.text || "").localeCompare(b.text || "");
-        });
-        for (var k = 0; k < recs.length; k++) {
-          var rec = recs[k];
-          var li3 = document.createElement("li");
-          var sev = rec && rec.severity ? rec.severity.toLowerCase() : "medium";
-          li3.className = "rec-" + sev;
-          var catLabel = rec && rec.category ? rec.category.toUpperCase() : "GENERAL";
-          var header = document.createElement("strong");
-          header.textContent = "[" + catLabel + "]";
-          li3.appendChild(header);
-          li3.appendChild(document.createTextNode(" " + (rec && rec.text ? rec.text : "")));
-          if (rec && rec.sources && rec.sources.length) {
-            var span = document.createElement("span");
-            span.className = "rec-source";
-            var listSources = rec.sources.slice(0, 3);
-            var labelText = listSources.join(", ");
-            if (rec.sources.length > listSources.length) {
-              labelText += " +" + (rec.sources.length - listSources.length) + " more";
-            }
-            span.textContent = " – " + labelText;
-            li3.appendChild(span);
-          }
-          recommendationsEl.appendChild(li3);
-        }
-      }
-    }
+    progress("Loading " + label + "…");
+    await chrome.tabs.update(tabId, { url: url });
+    await waitForTabComplete(tabId, timeoutMs);
+    await delay(250);
+    progress("Collecting DOM for " + label + "…");
+    domInfo = await runWithTimeout(requestDomInfoWithRetry(tabId, 3), timeoutMs);
+  } catch (e) {
+    progress("DOM unavailable for " + label + ".", "warn");
   }
 
-  console.debug("[SRA] popup.js loaded");
+  if (!domInfo) domInfo = { url: url };
+  else if (!domInfo.url) domInfo.url = url;
 
-})();
+  var paginationLinksForNet = [];
+  var rawLinks = get(domInfo, ["pagination", "links"], []);
+  if (Array.isArray(rawLinks) && rawLinks.length) {
+    paginationLinksForNet = rawLinks.filter(function (link) { return typeof link === "string" && link.trim(); });
+  }
+
+  var timedOut = false;
+  try {
+    progress("Scanning network for " + label + "…");
+    netInfo = await runWithTimeout(chrome.runtime.sendMessage({ type: "COLLECT_NETWORK_INFO", url: url, paginationLinks: paginationLinksForNet }), timeoutMs);
+  } catch (e2) {
+    if (getErrorMessage(e2).indexOf("Timeout") !== -1) timedOut = true;
+    progress("Network scan unavailable for " + label + ".", "warn");
+  }
+
+  if (!netInfo) netInfo = { url: url };
+
+  var audit = computeAudit(domInfo || {}, netInfo || {});
+  if (!audit.meta) audit.meta = {};
+  if (!audit.meta.url) audit.meta.url = url;
+  if (createdTabId) {
+    try { await chrome.tabs.remove(createdTabId); } catch (removeErr) {}
+  }
+  return { url: url, label: label, audit: audit, summary: toSummaryAudit(audit), timedOut: timedOut };
+}
+
+export { computeAudit, aggregatePageResults, shortLabel, CATEGORY_ORDER, toSummaryAudit };
