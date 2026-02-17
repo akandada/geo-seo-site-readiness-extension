@@ -1,0 +1,10 @@
+body{font-family:system-ui,sans-serif; margin:16px;}
+header{display:flex;gap:16px;align-items:center;justify-content:space-between}
+.panel{border:1px solid #ddd;border-radius:8px;padding:12px;margin-top:12px}
+.controls{display:grid;grid-template-columns:repeat(2,minmax(240px,1fr));gap:10px}
+textarea{width:100%;min-height:64px}
+progress{width:100%}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{border-bottom:1px solid #eee;padding:6px;vertical-align:top}
+th{cursor:pointer}
+.warn{color:#9a6b00}

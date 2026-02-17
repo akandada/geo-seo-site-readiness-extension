@@ -7,7 +7,22 @@ import { renderMediaInventory } from "./report/inventory.js";
 import { renderGtmInventory } from "./report/gtm.js";
 import { renderMultiPageList } from "./report/multiPage.js";
 import { renderRecommendations } from "./report/recommendations.js";
+import { auditPageWithReusableTab } from "./audit_core.js";
 
+
+
+async function runDeepAuditForUrl(targetUrl) {
+  var tab = await chrome.tabs.create({ url: targetUrl, active: false });
+  var tabId = tab && tab.id ? tab.id : null;
+  var result = await auditPageWithReusableTab({ url: targetUrl, origin: new URL(targetUrl).origin, tabId: tabId, timeoutMs: 25000, onProgress: function () {} });
+  if (tabId) {
+    try { await chrome.tabs.remove(tabId); } catch (e) {}
+  }
+  var key = "audit-" + Math.random().toString(36).slice(2);
+  var saveObj = {}; saveObj[key] = result.audit;
+  await chrome.storage.local.set(saveObj);
+  location.href = chrome.runtime.getURL("report.html?k=" + encodeURIComponent(key));
+}
 function updateCharts(data, overallScore) {
   var chartDashboardCard = $("chartDashboardCard");
   var chartPanelsVisible = false;
@@ -378,6 +393,7 @@ function renderHeader(data) {
 
 (function init(){
   var downloadBtn = $("downloadPdf");
+  var deepAuditBtn = $("runDeepAudit");
   if (downloadBtn) {
     downloadBtn.addEventListener("click", function(){
       window.print();
@@ -405,6 +421,12 @@ function renderHeader(data) {
     }
 
     var headerInfo = renderHeader(data);
+    var deepAuditUrl = data.meta && data.meta.url ? data.meta.url : "";
+    var hasDeepPayload = !!(data.dom && data.net);
+    if (deepAuditBtn && deepAuditUrl && !hasDeepPayload) {
+      deepAuditBtn.style.display = "inline-flex";
+      deepAuditBtn.onclick = function(){ runDeepAuditForUrl(deepAuditUrl); };
+    }
     renderMultiPageList(headerInfo.multiInfo);
 
     updateCharts(data, headerInfo.overallScore);
