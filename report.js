@@ -9,6 +9,142 @@ import { renderMultiPageList } from "./report/multiPage.js";
 import { renderRecommendations } from "./report/recommendations.js";
 import { auditPageWithReusableTab } from "./audit_core.js";
 
+function getAllCategoryItems(data) {
+  var out = [];
+  if (!data || !data.categories) return out;
+  var keys = Object.keys(data.categories);
+  for (var i = 0; i < keys.length; i++) {
+    var key = keys[i];
+    var category = data.categories[key];
+    var items = category && category.items ? category.items : [];
+    for (var j = 0; j < items.length; j++) {
+      var item = items[j];
+      if (!item || !item.text) continue;
+      out.push({
+        category: key,
+        state: item.state || "info",
+        text: item.text,
+        detail: item.detail || "",
+        fix: item.fix || ""
+      });
+    }
+  }
+  return out;
+}
+
+function addSummaryListItem(listEl, state, text, detail) {
+  if (!listEl || !text) return;
+  var li = document.createElement("li");
+  li.className = state || "info";
+  var heading = document.createElement("div");
+  heading.className = "summary";
+  heading.textContent = text;
+  li.appendChild(heading);
+  if (detail) {
+    var detailEl = document.createElement("div");
+    detailEl.className = "detail";
+    detailEl.textContent = detail;
+    li.appendChild(detailEl);
+  }
+  listEl.appendChild(li);
+}
+
+function renderExecutiveSummary(data, headerInfo) {
+  var card = $("executiveSummaryCard");
+  if (!card) return;
+  card.style.display = "block";
+
+  var score = headerInfo && headerInfo.overallScore != null ? Number(headerInfo.overallScore) : null;
+  var grade = data && data.overall && data.overall.grade ? data.overall.grade : "—";
+
+  var summaryLine = $("summaryLine");
+  if (summaryLine) {
+    if (score == null || score !== score) {
+      summaryLine.textContent = "Score unavailable for this scan.";
+    } else if (score >= 90) {
+      summaryLine.textContent = "Excellent readiness (" + score + "/100, grade " + grade + "). Maintain quality and focus on incremental gains.";
+    } else if (score >= 75) {
+      summaryLine.textContent = "Strong baseline (" + score + "/100, grade " + grade + "). A few focused improvements should meaningfully raise readiness.";
+    } else if (score >= 60) {
+      summaryLine.textContent = "Moderate readiness (" + score + "/100, grade " + grade + "). Prioritize high-impact issues below to improve crawl and answer quality.";
+    } else {
+      summaryLine.textContent = "Low readiness (" + score + "/100, grade " + grade + "). Address critical blockers first before optimization work.";
+    }
+  }
+
+  var items = getAllCategoryItems(data);
+  var counts = { ok: 0, warn: 0, bad: 0, info: 0 };
+  for (var i = 0; i < items.length; i++) {
+    var state = items[i].state;
+    if (state !== "ok" && state !== "warn" && state !== "bad") state = "info";
+    counts[state] += 1;
+  }
+
+  var chips = $("summaryChips");
+  if (chips) {
+    chips.innerHTML = "";
+    [
+      { label: "Critical issues", value: counts.bad, cls: "bad" },
+      { label: "Warnings", value: counts.warn, cls: "warn" },
+      { label: "Positive checks", value: counts.ok, cls: "ok" },
+      { label: "Info", value: counts.info, cls: "info" }
+    ].forEach(function(entry) {
+      var chip = document.createElement("span");
+      chip.className = "chip summary-chip " + entry.cls;
+      chip.textContent = entry.label + ": " + entry.value;
+      chips.appendChild(chip);
+    });
+  }
+
+  var topIssues = $("topIssuesList");
+  var topWins = $("topWinsList");
+  if (topIssues) topIssues.innerHTML = "";
+  if (topWins) topWins.innerHTML = "";
+
+  var badItems = items.filter(function(entry){ return entry.state === "bad"; }).slice(0, 5);
+  var winItems = items.filter(function(entry){ return entry.state === "ok"; }).slice(0, 5);
+
+  if (topIssues) {
+    if (!badItems.length) {
+      addSummaryListItem(topIssues, "ok", "No critical issues detected", "Current scan did not flag any red status checks.");
+    } else {
+      badItems.forEach(function(entry){
+        addSummaryListItem(topIssues, "bad", entry.text, entry.fix || entry.detail || "Review this issue in category details.");
+      });
+    }
+  }
+
+  if (topWins) {
+    if (!winItems.length) {
+      addSummaryListItem(topWins, "info", "No strong positives captured", "As checks pass, positive highlights will show here.");
+    } else {
+      winItems.forEach(function(entry){
+        addSummaryListItem(topWins, "ok", entry.text, entry.detail || "Healthy signal.");
+      });
+    }
+  }
+
+  var actionPlan = $("priorityActionList");
+  if (actionPlan) {
+    actionPlan.innerHTML = "";
+    var recommendations = (data && data.recommendations ? data.recommendations.slice() : []).filter(function(rec){ return rec && rec.text; });
+    recommendations.sort(function(a, b){
+      var sev = { high: 3, medium: 2, low: 1 };
+      return (sev[b.severity || "medium"] || 2) - (sev[a.severity || "medium"] || 2);
+    });
+    var picked = recommendations.slice(0, 5);
+    if (!picked.length) {
+      addSummaryListItem(actionPlan, "ok", "No immediate actions recommended", "The current report does not include unresolved action items.");
+    } else {
+      picked.forEach(function(rec, idx){
+        var sev = (rec.severity || "medium").toLowerCase();
+        var state = sev === "high" ? "bad" : (sev === "medium" ? "warn" : "ok");
+        var tag = sev === "high" ? "High impact" : (sev === "medium" ? "Medium impact" : "Low impact");
+        addSummaryListItem(actionPlan, state, (idx + 1) + ". " + rec.text, "" + tag + (rec.category ? " · " + rec.category.toUpperCase() : ""));
+      });
+    }
+  }
+}
 
 
 async function runDeepAuditForUrl(targetUrl) {
@@ -428,6 +564,7 @@ function renderHeader(data) {
       deepAuditBtn.onclick = function(){ runDeepAuditForUrl(deepAuditUrl); };
     }
     renderMultiPageList(headerInfo.multiInfo);
+    renderExecutiveSummary(data, headerInfo);
 
     updateCharts(data, headerInfo.overallScore);
 

@@ -98,6 +98,14 @@
     .legend-swatch { width: 10px; height: 10px; border-radius: 999px; }
     .small { font-size: 12px; }
 
+    .summaryLead { margin: 0 0 10px 0; font-size: 14px; line-height: 1.45; }
+    .summary-chip.ok { border-color: rgba(42,167,69,0.45); }
+    .summary-chip.warn { border-color: rgba(227,160,8,0.45); }
+    .summary-chip.bad { border-color: rgba(230,57,70,0.45); }
+    .summary-chip.info { border-color: rgba(92,162,255,0.45); }
+    .summaryBlock h3 { margin: 0 0 8px 0; font-size: 13px; letter-spacing: 0.2px; }
+    .summaryList { margin-top: 0; }
+
     pre { margin: 0; padding: 12px; background: #eef2ff; color: #0f172a; border: 1px solid var(--border); border-radius: 10px; overflow: auto; font-size: 12px; line-height: 1.45; }
 
     .kv { display: grid; grid-template-columns: 160px 1fr; gap: 8px; }
@@ -155,6 +163,27 @@
   </header>
 
   <main>
+    <section class="card" id="executiveSummaryCard" style="display:none;">
+      <h2>Executive Summary</h2>
+      <p class="summaryLead" id="summaryLine">Report summary unavailable.</p>
+      <div class="chips" id="summaryChips"></div>
+      <div class="spacer"></div>
+      <div class="grid-3">
+        <div class="summaryBlock">
+          <h3>Top issues to fix first</h3>
+          <ul class="list summaryList" id="topIssuesList"></ul>
+        </div>
+        <div class="summaryBlock">
+          <h3>What is already working</h3>
+          <ul class="list summaryList" id="topWinsList"></ul>
+        </div>
+        <div class="summaryBlock">
+          <h3>Priority action plan</h3>
+          <ul class="list summaryList" id="priorityActionList"></ul>
+        </div>
+      </div>
+    </section>
+
     <section class="card" id="chartDashboardCard" style="display:none;">
       <h2>Score &amp; Findings Overview</h2>
       <div class="muted small">Overall score is a weighted sum across GEO (27), SEO (25), Accessibility (20), and Performance (35). Charts display the normalized 0–100 values derived from those point pools.</div>
