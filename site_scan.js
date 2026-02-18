@@ -49,7 +49,7 @@ import { auditPageWithReusableTab, aggregatePageResults } from "./audit_core.js"
   function pageSummary(page){
     var fail = (page.keyChecks || []).filter(function(k){ return k.state === "bad" || k.state === "warn"; }).length;
     var cats = page.categories || {};
-    return (cats.geo ? cats.geo.score : "-") + "/" + (cats.seo ? cats.seo.score : "-") + "/" + (cats.performance ? cats.performance.score : "-") + " | " + fail + " issues";
+    return (cats.geo ? cats.geo.score : "-") + "/" + (cats.seo ? cats.seo.score : "-") + "/" + (cats.answer ? cats.answer.score : "-") + "/" + (cats.a11y ? cats.a11y.score : "-") + "/" + (cats.performance ? cats.performance.score : "-") + " | " + fail + " issues";
   }
 
   function renderTable(){
@@ -140,11 +140,11 @@ import { auditPageWithReusableTab, aggregatePageResults } from "./audit_core.js"
   });
   exportCsvBtn.addEventListener("click", function(){
     if (!runData || !runData.pages) return;
-    var rows = ["url,score,grade,geo,seo,answer,a11y,performance,infinite,failures"];
+    var rows = ["url,score,grade,geo,seo,answer,a11y,performance,failures"];
     runData.pages.forEach(function(p){
       var c = p.categories || {};
       var fail = (p.keyChecks || []).filter(function(k){ return k.state !== "ok"; }).length;
-      rows.push([p.url,p.overall.score,p.overall.grade,c.geo?c.geo.score:"",c.seo?c.seo.score:"",c.answer?c.answer.score:"",c.a11y?c.a11y.score:"",c.performance?c.performance.score:"",c.infinite?c.infinite.score:"",fail].join(","));
+      rows.push([p.url,p.overall.score,p.overall.grade,c.geo?c.geo.score:"",c.seo?c.seo.score:"",c.answer?c.answer.score:"",c.a11y?c.a11y.score:"",c.performance?c.performance.score:"",fail].join(","));
     });
     var blob = new Blob([rows.join("\n")], { type: "text/csv" });
     var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "site-scan.csv"; a.click();

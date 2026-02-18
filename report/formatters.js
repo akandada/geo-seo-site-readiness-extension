@@ -24,6 +24,7 @@ export function categoryLabel(name) {
   if (name === "geo") return "GEO / LLM";
   if (name === "a11y") return "Accessibility";
   if (name === "seo") return "SEO";
+  if (name === "answer") return "Answer";
   if (name === "performance") return "Performance";
   return name;
 }

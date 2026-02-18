@@ -1,3 +1,4 @@
+import { CATEGORY_ORDER as CORE_CATEGORY_ORDER } from "../audit_core.js";
 import { categoryLabel } from "./formatters.js";
 import { $ } from "./dom.js";
 
@@ -18,7 +19,7 @@ export function renderMultiPageList(multi) {
   }
 
   list.innerHTML = "";
-  var order = ["geo","seo","a11y","performance"];
+  var order = CORE_CATEGORY_ORDER.slice();
   for (var i = 0; i < multi.pages.length; i++) {
     var entry = multi.pages[i];
     if (!entry) continue;

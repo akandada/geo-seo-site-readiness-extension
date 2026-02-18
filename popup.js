@@ -34,7 +34,7 @@ import { auditPageWithReusableTab as coreAuditPageWithReusableTab, aggregatePage
     return cur === undefined ? fallback : cur;
   }
 
-  var CATEGORY_ORDER = ["geo", "seo", "a11y", "performance"];
+  var CATEGORY_ORDER = CORE_CATEGORY_ORDER.slice();
   var lastReportKey = null;
 
   function resetProgress() { if (progressEl) progressEl.innerHTML = ""; }
