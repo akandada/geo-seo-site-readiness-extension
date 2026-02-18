@@ -1,6 +1,6 @@
 # Site Quality Index Chrome Extension
 
-Site Quality Index is a Chrome extension that evaluates a page's performance, crawlability, GEO/LLM readiness, answer-engine signals, accessibility, and infinite scroll patterns. It combines DOM heuristics with network-level fetches to produce an overall readiness score and actionable recommendations.
+Site Quality Index is a Chrome extension that evaluates a page's performance, crawlability, GEO/LLM readiness, answer-engine signals, accessibility patterns. It combines DOM heuristics with network-level fetches to produce an overall readiness score and actionable recommendations.
 
 ![Alt text](/screen_shot.png?raw=true "Optional Title")
 
@@ -13,20 +13,19 @@ Site Quality Index is a Chrome extension that evaluates a page's performance, cr
 - **GEO / LLM readiness** – Fetches `robots.txt`, `ai.txt`, `llms.txt`, and evaluates whether major AI crawlers are allowed, while reporting AI policy directives that block ingestion. 【F:service_worker.js†L220-L423】【F:popup.js†L507-L552】
 - **GEO content deep dive** – Captures word counts, readability, structure, outbound references, quotes, and stats for the detailed report view. 【F:content.js†L19-L146】【F:report.js†L962-L1033】
 - **Accessibility highlights** – Ensures a single `<h1>`, checks for missing `alt` text, verifies `<html lang>` usage, and evaluates content depth. 【F:content.js†L1-L44】【F:popup.js†L629-L640】
-- **Infinite scroll readiness** – Detects infinite scroll behavior, ensures crawlable pagination URLs exist, and verifies that fetching a “page 2” URL returns content. 【F:content.js†L576-L652】【F:service_worker.js†L286-L423】【F:popup.js†L736-L761】
 - **Shareable reports** – Saves the latest audit to `chrome.storage.local`, renders a detailed report page, and preserves raw data for debugging. 【F:popup.js†L62-L86】【F:report.js†L1-L120】
 
 ## How it Works
 
 1. **Popup trigger** – Clicking **Run audit** in `popup.html` wakes the background service worker and queries the active tab. 【F:popup.js†L25-L86】
 2. **DOM collection** – The content script (`content.js`) listens for `COLLECT_DOM_INFO`, gathers metadata and in-page signals, and simulates a scroll to detect dynamically injected content. 【F:content.js†L1-L70】
-3. **Network collection** – The service worker (`service_worker.js`) fetches site-level resources (robots, sitemap, AI policies) and infers pagination patterns from discovered sitemap URLs. 【F:service_worker.js†L33-L364】
-4. **Scoring** – The popup combines DOM and network snapshots into six weighted category scores (GEO 22, SEO 25, Answer Engine 20, A11y 20, Performance 35, Infinite 10), derives an overall grade, and lists key checks plus prioritized recommendations. 【F:popup.js†L470-L826】【F:popup.js†L910-L1010】
-5. **Reporting** – Results are persisted under a random key. The **Open full report** button launches `report.html`, which formats category cards, pagination diagnostics, and raw JSON. 【F:popup.js†L62-L86】【F:report.js†L53-L120】
+3. **Network collection** – The service worker (`service_worker.js`) fetches site-level resources (robots, sitemap, AI policies) and collects crawl/AI policy signals. 【F:service_worker.js†L33-L364】
+4. **Scoring** – The popup combines DOM and network snapshots into five weighted category scores (GEO 22, SEO 25, Answer Engine 20, A11y 20, Performance 35), derives an overall grade, and lists key checks plus prioritized recommendations. 【F:popup.js†L470-L826】【F:popup.js†L910-L1010】
+5. **Reporting** – Results are persisted under a random key. The **Open full report** button launches `report.html`, which formats category cards and raw JSON. 【F:popup.js†L62-L86】【F:report.js†L53-L120】
 
 ## Scoring System Deep Dive
 
-The overall readiness score is the weighted sum of six categories. Each category grants points when a check passes; failing checks log guidance and may trigger recommendations. Scores are capped at their category maximums before computing the overall grade (`A ≥ 90`, `B ≥ 80`, `C ≥ 70`, `D ≥ 60`, otherwise `F`). 【F:popup.js†L24-L37】【F:popup.js†L470-L774】
+The overall readiness score is the weighted sum of five categories. Each category grants points when a check passes; failing checks log guidance and may trigger recommendations. Scores are capped at their category maximums before computing the overall grade (`A ≥ 90`, `B ≥ 80`, `C ≥ 70`, `D ≥ 60`, otherwise `F`). 【F:popup.js†L24-L37】【F:popup.js†L470-L774】
 
 | Category | Max Points | Focus |
 | --- | --- | --- |
@@ -35,7 +34,6 @@ The overall readiness score is the weighted sum of six categories. Each category
 | Answer Engine | 20 | FAQ/HowTo schema, speakable markup, summaries, and citations |
 | Accessibility | 20 | Semantic headings, alt text, language, and content depth |
 | Performance | 35 | Core Web Vitals + delivery optimizations |
-| Infinite Scroll | 10 | Crawl-friendly pagination for infinite feeds |
 
 ### GEO / LLM (22 pts)
 
@@ -100,14 +98,6 @@ Performance points blend Lighthouse’s Core Web Vitals curves with delivery heu
 * **Modern image formats (2 pts)** – Awards points when ≥70% of images use WebP/AVIF. 【F:popup.js†L678-L683】
 * **Lazy-loading adoption (1 pt)** – Checks for `loading="lazy"` on ≥70% of non-critical images. 【F:popup.js†L685-L689】
 * **`font-display` usage (1 pt)** – Confirms custom fonts declare `font-display`. 【F:popup.js†L691-L694】
-
-### Infinite Scroll & Pagination (10 pts)
-
-Infinite scroll audits ensure feed-style pages remain crawlable:
-
-* **Crawlable pagination present (7 pts)** – Requires discoverable pagination links and a successful network fetch of “page 2”. Works for both traditional and infinite-loading pages. 【F:popup.js†L700-L709】
-* **Pagination visible or hinted (3 pts)** – Accepts either visible controls or `<link rel="next/prev">` hints. 【F:popup.js†L711-L716】
-* **Behavior descriptor (0 pts)** – Notes whether infinite scroll was observed during simulated scrolling. 【F:popup.js†L718-L722】
 
 ### Recommendations and Key Checks
 

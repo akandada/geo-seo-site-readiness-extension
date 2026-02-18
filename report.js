@@ -7,12 +7,27 @@ import { renderMediaInventory } from "./report/inventory.js";
 import { renderGtmInventory } from "./report/gtm.js";
 import { renderMultiPageList } from "./report/multiPage.js";
 import { renderRecommendations } from "./report/recommendations.js";
-import { auditPageWithReusableTab } from "./audit_core.js";
+import { auditPageWithReusableTab, CATEGORY_ORDER as CORE_CATEGORY_ORDER } from "./audit_core.js";
+
+var CATEGORY_HELPERS = {
+  geo: "Out of 27 points based on AI crawler permissions, policy file availability, summary signals, citations, and penalties for noai directives.",
+  seo: "Max 25 points for sitemap discovery, indexability, structured data, canonical tags, and healthy title/description lengths.",
+  answer: "Max 20 points for concise answers, semantic structure, FAQ/schema support, and snippet-friendly content.",
+  a11y: "Scores to 20 points by checking a single <h1>, alt text coverage, declared html lang, and ≥300-word content depth.",
+  performance: "Capped at 35 points combining Lighthouse Core Web Vitals with bonuses for compression, caching, resource hints, modern image formats, lazy loading, and font-display."
+};
+
+function getVisibleCategoryOrder(categories) {
+  var source = categories && typeof categories === "object" ? categories : {};
+  return CORE_CATEGORY_ORDER.filter(function (name) {
+    return !!source[name];
+  });
+}
 
 function getAllCategoryItems(data) {
   var out = [];
   if (!data || !data.categories) return out;
-  var keys = Object.keys(data.categories);
+  var keys = getVisibleCategoryOrder(data.categories || {});
   for (var i = 0; i < keys.length; i++) {
     var key = keys[i];
     var category = data.categories[key];
@@ -186,28 +201,18 @@ function updateCharts(data, overallScore) {
     }
   }
 
-  var catMap = [
-    {
-      title: "GEO / LLM Readiness",
-      cat: data.categories && data.categories.geo,
-      helper: "Out of 27 points based on AI crawler permissions, policy file availability, summary signals, citations, and penalties for noai directives."
-    },
-    {
-      title: "Crawlability & SEO",
-      cat: data.categories && data.categories.seo,
-      helper: "Max 25 points for sitemap discovery, indexability, structured data, canonical tags, and healthy title/description lengths."
-    },
-    {
-      title: "Accessibility & Semantics",
-      cat: data.categories && data.categories.a11y,
-      helper: "Scores to 20 points by checking a single <h1>, alt text coverage, declared html lang, and ≥300-word content depth."
-    },
-    {
-      title: "Performance",
-      cat: data.categories && data.categories.performance,
-      helper: "Capped at 35 points combining Lighthouse Core Web Vitals with bonuses for compression, caching, resource hints, modern image formats, lazy loading, and font-display."
-    }
-  ];
+  var categoryNames = getVisibleCategoryOrder(data.categories || {});
+  var catMap = categoryNames.map(function (name) {
+    return {
+      key: name,
+      title: name === "geo" ? "GEO / LLM Readiness" :
+        (name === "seo" ? "Crawlability & SEO" :
+          (name === "a11y" ? "Accessibility & Semantics" :
+            (name === "answer" ? "Answer Engine Readiness" : "Performance"))),
+      cat: data.categories && data.categories[name],
+      helper: CATEGORY_HELPERS[name] || ""
+    };
+  });
 
   var container = $("categoryCards");
   if (container) {

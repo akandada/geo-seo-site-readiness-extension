@@ -11,7 +11,7 @@ function get(obj, path, fallback) {
   return cur === undefined ? fallback : cur;
 }
 
-var CATEGORY_ORDER = ["geo", "seo", "answer", "a11y", "performance", "infinite"];
+var CATEGORY_ORDER = ["geo", "seo", "answer", "a11y", "performance"];
 
 function delay(ms) { return new Promise(function (res) { setTimeout(res, ms); }); }
 
@@ -286,8 +286,7 @@ function computeAudit(dom, net) {
       seo: { max: 25, score: 0, items: [] },
       answer: { max: 20, score: 0, items: [] },
       a11y: { max: 20, score: 0, items: [] },
-      performance: { max: 35, score: 0, items: [] },
-      infinite: { max: 10, score: 0, items: [] }
+      performance: { max: 35, score: 0, items: [] }
     };
 
     var recommendations = [];
@@ -692,33 +691,6 @@ function computeAudit(dom, net) {
     var fontsDisplay = !!get(dom, ["fonts", "haveDisplay"], false);
     addCat("performance", 1, fontsDisplay, "Fonts use font-display", "Add font-display: swap/optional to custom fonts.", fontsDisplay ? "font-display detected in inline styles." : "No font-display declaration found in detected stylesheets.", fontsDisplay ? "low" : "low");
 
-    // Infinite scroll / crawlable pagination
-    var hasPaginationLinks = ((get(dom, ["pagination", "links"], []) || []).length) > 0;
-    var infiniteObserved = !!get(dom, ["infinite", "appendedOnScroll"], false);
-    var pageFetchOK = !!get(net, ["paginationFetch", "ok"], false);
-    var paginationVisible = !!get(dom, ["pagination", "visible"], false);
-    var relNextPrevFound = !!get(dom, ["pagination", "relNextPrev"], false);
-
-    var infinitePatternOK = hasPaginationLinks && (!infiniteObserved || pageFetchOK);
-    var paginationLinksCount = (get(dom, ["pagination", "links"], []) || []).length;
-    var infiniteMissing = [];
-    if (!hasPaginationLinks) infiniteMissing.push("pagination links");
-    if (infiniteObserved && !pageFetchOK) infiniteMissing.push("page fetch success");
-    var infiniteDetail = infinitePatternOK ?
-      "Found " + paginationLinksCount + " pagination link(s)" + (pageFetchOK ? " and a page 2 fetch succeeded." : ".") :
-      "Missing pagination requirements: " + (infiniteMissing.length ? infiniteMissing.join(" and ") : "unknown cause") + ".";
-    addCat("infinite", 7, infinitePatternOK, "Crawlable pagination present", "Expose crawlable page 2/3 links and ensure they return content.", infiniteDetail, infinitePatternOK ? "low" : "high");
-
-    var paginationVisibilityDetail = paginationVisible ?
-      "Pagination elements are visible in the DOM." :
-      (relNextPrevFound ? "rel=next/prev link tags found." : "No visible pagination controls or rel hints detected.");
-    addCat("infinite", 3, (paginationVisible || relNextPrevFound), paginationVisible ? "Pagination visible to users" : "rel=\"next/prev\" present", "Surface visible pagination links or add rel=next/prev hints.", paginationVisibilityDetail, (paginationVisible || relNextPrevFound) ? "low" : "medium");
-
-    var infiniteModeDetail = infiniteObserved ?
-      "Additional content appended during scroll test." :
-      "No infinite scroll behavior detected; relies on traditional pagination.";
-    addCat("infinite", 0, true, infiniteObserved ? "Infinite scroll detected" : "Traditional pagination", infiniteObserved ? null : "If you want infinite UX, progressively append without hiding crawlable links.", infiniteModeDetail);
-
     if (geoPenalty) {
       CATS.geo.score = Math.max(0, CATS.geo.score - geoPenalty);
     }
@@ -774,8 +746,7 @@ function computeAudit(dom, net) {
         seo: { score: pct(CATS.seo.score, CATS.seo.max), items: CATS.seo.items },
         answer: { score: pct(CATS.answer.score, CATS.answer.max), items: CATS.answer.items },
         a11y: { score: pct(CATS.a11y.score, CATS.a11y.max), items: CATS.a11y.items },
-        performance: { score: pct(CATS.performance.score, CATS.performance.max), items: CATS.performance.items },
-        infinite: { score: pct(CATS.infinite.score, CATS.infinite.max), items: CATS.infinite.items }
+        performance: { score: pct(CATS.performance.score, CATS.performance.max), items: CATS.performance.items }
       },
       keyChecks: keyChecks,
       recommendations: recommendations,
@@ -851,16 +822,10 @@ export async function auditPageWithReusableTab(options) {
   if (!domInfo) domInfo = { url: url };
   else if (!domInfo.url) domInfo.url = url;
 
-  var paginationLinksForNet = [];
-  var rawLinks = get(domInfo, ["pagination", "links"], []);
-  if (Array.isArray(rawLinks) && rawLinks.length) {
-    paginationLinksForNet = rawLinks.filter(function (link) { return typeof link === "string" && link.trim(); });
-  }
-
   var timedOut = false;
   try {
     progress("Scanning network for " + label + "…");
-    netInfo = await runWithTimeout(chrome.runtime.sendMessage({ type: "COLLECT_NETWORK_INFO", url: url, paginationLinks: paginationLinksForNet }), timeoutMs);
+    netInfo = await runWithTimeout(chrome.runtime.sendMessage({ type: "COLLECT_NETWORK_INFO", url: url }), timeoutMs);
   } catch (e2) {
     if (getErrorMessage(e2).indexOf("Timeout") !== -1) timedOut = true;
     progress("Network scan unavailable for " + label + ".", "warn");
